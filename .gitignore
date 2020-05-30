@@ -1,0 +1,9 @@
+/obj
+/miniupnpc
+
+/test/test
+
+*.swp
+*.vim
+*.a
+*.o

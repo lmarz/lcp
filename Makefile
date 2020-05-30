@@ -1,22 +1,44 @@
-CC            := gcc
-OUT_FILE_NAME := lcp.a
+# ------------------------------------------------
+# Generic Makefile, capable of including static
+# libraries
+#
+# Modified by:      admin@enudstudios.com
+# Date:             2020-01-09
+#
+# Original Author:  yanick.rochon@gmail.com
+# Date:             2011-08-10
+# ------------------------------------------------
 
-CFLAGS        := -fPIC -O0 -g -Wall -c -pedantic -std=c89 -ansi -I. -I./inc
+# Name of the created executable
+TARGET     := liblcp.a
 
-# The directory to put the object-files into
-OBJ_DIR       := ./obj
+# Get the absolute path to the directory this makefile is in
+MKFILE_PTH := $(abspath $(lastword $(MAKEFILE_LIST)))
+MKFILE_DIR := $(dir $(MKFILE_PTH))
 
-$(OUT_FILE_NAME): $(patsubst %.c,$(OBJ_DIR)/%.o,$(wildcard *.c))
+# The compiler to use
+CC         := gcc
+# Error flags for compiling
+ERRFLAGS   := -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition
+# Compiling flags here
+CFLAGS     := -g -O0 -ansi -std=c89 -pedantic -I. -I./inc/
+
+# The linker to use
+LINKER     := gcc
+
+# Change these to proper directories where each file should be
+SRCDIR     := src
+OBJDIR     := obj
+
+SOURCES    := $(wildcard $(SRCDIR)/*.c)
+OBJECTS    := $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+
+rm         := rm -f
+
+$(TARGET): $(OBJECTS)
 	@ar -r -o $@ $^
 	@echo "Linking complete!"
 
-$(OBJ_DIR)/%.o: %.c dirmake
-	@$(CC) -c $(CFLAGS) -o $@  $<
+$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.c
+	@$(CC) $(CFLAGS) $(ERRFLAGS) -c $< -o $@
 	@echo "Compiled "$<" successfully!"
-
-dirmake:
-	@mkdir -p $(OBJ_DIR)
-
-.PHONY: test
-test:
-	gcc test/main.c ./lcp.a ./miniupnpc/libminiupnpc.a -lgmp -lm

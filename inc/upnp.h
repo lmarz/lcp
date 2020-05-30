@@ -2,8 +2,8 @@
 #define _LCP_UPNP_H
 
 #include "define.h"
-#include "miniupnpc/miniupnpc.h"
-#include "miniupnpc/upnpcommands.h"
+#include "../miniupnpc/miniupnpc.h"
+#include "../miniupnpc/upnpcommands.h"
 
 
 struct lcp_upnp_hdl {
