@@ -1,10 +1,12 @@
-#ifndef _UPNP_H
-#define _UPNP_H
+#ifndef _LCP_UPNP_H
+#define _LCP_UPNP_H
 
+#include "define.h"
 #include "miniupnpc/miniupnpc.h"
 #include "miniupnpc/upnpcommands.h"
 
-struct upnp_handle {
+
+struct lcp_upnp_hdl {
 	struct UPNPUrls urls;
 	struct IGDdatas data;
 	struct UPNPDev *dev;
@@ -20,7 +22,7 @@ struct upnp_handle {
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-extern int upnp_prep(struct upnp_handle *hdl);
+LCP_API int lcp_upnp_prep(struct lcp_upnp_hdl *hdl);
 
 
 /*
@@ -28,7 +30,7 @@ extern int upnp_prep(struct upnp_handle *hdl);
  *
  * @hdl: Pointer to the uPnP-handle
  */
-extern void upnp_close(struct upnp_handle *hdl);
+LCP_API void lcp_upnp_close(struct lcp_upnp_hdl *hdl);
 
 
 /*
@@ -36,11 +38,11 @@ extern void upnp_close(struct upnp_handle *hdl);
  *
  * @hdl: Pointer to the uPnP-handle
  * @in: The internal port
- * @ex: The external port
+ * @ex: The LCP_APIal port
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-extern int upnp_add(struct upnp_handle *hdl, unsigned short in,
+LCP_API int lcp_upnp_add(struct lcp_upnp_hdl *hdl, unsigned short in,
 		unsigned int ex);
 
 
@@ -48,8 +50,8 @@ extern int upnp_add(struct upnp_handle *hdl, unsigned short in,
  * Remove a forward-entry from the NAT-table.
  *
  * @hdl: Pointer to the uPnP-handle
- * @ex: The external port to free
+ * @ex: The LCP_APIal port to free
  */
-extern void upnp_remv(struct upnp_handle *hdl, unsigned short ex);
+LCP_API void lcp_upnp_remv(struct lcp_upnp_hdl *hdl, unsigned short ex);
 
 #endif

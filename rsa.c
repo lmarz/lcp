@@ -5,9 +5,43 @@
 #include <time.h>
 #include <math.h>
 
-LCP_API void gen_keys(struct pvt_key *pvt, struct pub_key *pub)
+
+LCP_API void lcp_init_pvt(struct lcp_pvt_key *pvt)
 {
-	char buf[BUFFER_SIZE];
+	mpz_init(pvt->n); 
+	mpz_init(pvt->e); 
+	mpz_init(pvt->d); 
+	mpz_init(pvt->p); 
+	mpz_init(pvt->q);
+}
+
+
+LCP_API void lcp_init_pub(struct lcp_pub_key *pub)
+{
+	mpz_init(pub->n);
+	mpz_init(pub->e);
+}
+
+
+LCP_API void lcp_clear_pvt(struct lcp_pvt_key *pvt)
+{
+	mpz_clear(pvt->n); 
+	mpz_clear(pvt->e); 
+	mpz_clear(pvt->d); 
+	mpz_clear(pvt->p); 
+	mpz_clear(pvt->q);	
+}
+
+
+LCP_API void lcp_clear_pub(struct lcp_pub_key *pub)
+{
+	mpz_clear(pub->n);
+	mpz_clear(pub->e);
+}
+
+LCP_API void lcp_gen_keys(struct lcp_pvt_key *pvt, struct lcp_pub_key *pub)
+{
+	char buf[LCP_BUFFER_SIZE];
 	int i;
 	mpz_t phi;
 	mpz_t tmp1;
@@ -21,14 +55,14 @@ LCP_API void gen_keys(struct pvt_key *pvt, struct pub_key *pub)
 
 	mpz_set_ui(pvt->e, 3); 
 
-	for(i = 0; i < BUFFER_SIZE; i++)
+	for(i = 0; i < LCP_BUFFER_SIZE; i++)
 		buf[i] = rand() % 0xFF;
 
 	buf[0] |= 0xC0;
 
-	buf[BUFFER_SIZE - 1] |= 0x01;
+	buf[LCP_BUFFER_SIZE - 1] |= 0x01;
 
-	mpz_import(tmp1, BUFFER_SIZE, 1, sizeof(char), 0, 0, buf);
+	mpz_import(tmp1, LCP_BUFFER_SIZE, 1, sizeof(char), 0, 0, buf);
 
 	mpz_nextprime(pvt->p, tmp1);
 
@@ -39,12 +73,12 @@ LCP_API void gen_keys(struct pvt_key *pvt, struct pub_key *pub)
 	}
 
 	do {
-		for(i = 0; i < BUFFER_SIZE; i++)
+		for(i = 0; i < LCP_BUFFER_SIZE; i++)
 			buf[i] = rand() % 0xFF;
 
 		buf[0] |= 0xC0;
-		buf[BUFFER_SIZE - 1] |= 0x01;
-		mpz_import(tmp1, BUFFER_SIZE, 1, sizeof(char), 0, 0, buf);
+		buf[LCP_BUFFER_SIZE - 1] |= 0x01;
+		mpz_import(tmp1, LCP_BUFFER_SIZE, 1, sizeof(char), 0, 0, buf);
 		mpz_nextprime(pvt->q, tmp1);
 		mpz_mod(tmp2, pvt->q, pvt->e);
 		while(!mpz_cmp_ui(tmp2, 1)) {
@@ -74,35 +108,18 @@ LCP_API void gen_keys(struct pvt_key *pvt, struct pub_key *pub)
 }
 
 
-LCP_API void lcp_free_keys(struct pvt_key *pvt, struct pub_key *pub)
-{
-	if(pvt != NULL) {
-		mpz_clear(pvt->n);
-		mpz_clear(pvt->e);
-		mpz_clear(pvt->d);
-		mpz_clear(pvt->p);
-		mpz_clear(pvt->q);
-	}
-
-	if(pub != NULL) {
-		mpz_clear(pub->n);
-		mpz_clear(pub->e);
-	}
-}
-
-
 LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len, 
-		struct pub_key pub)
+		struct lcp_pub_key pub)
 {
 	char *ret;
-	char block[BLOCK_SIZE];
+	char block[LCP_BLOCK_SIZE];
 	mpz_t m;
 	mpz_t c;
 
 	int i = 0;
 	int left = in_len;
-	int num = (int)ceil((double)in_len / BUF_SIZE);
-	int size = num * BLOCK_SIZE;
+	int num = (int)ceil((double)in_len / LCP_BUF_SIZE);
+	int size = num * LCP_BLOCK_SIZE;
 
 	if(!(ret = malloc(size)))
 		return -1;
@@ -113,21 +130,21 @@ LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len,
 
 	while(left > 0) {
 		int from = in_len - left;
-		int to = (i + 1) * BLOCK_SIZE;
-		int sz = (left > BUF_SIZE) ? (BUF_SIZE) : (left);
+		int to = (i + 1) * LCP_BLOCK_SIZE;
+		int sz = (left > LCP_BUF_SIZE) ? (LCP_BUF_SIZE) : (left);
 		size_t enc_len = 0;	
 
-		memset(block, 0, BLOCK_SIZE);
+		memset(block, 0, LCP_BLOCK_SIZE);
 		block[0] = 0x01;
 		block[1] = 0x02;
 		memcpy(block + 2, in + from, sz);
 
-		mpz_import(m, BLOCK_SIZE, 1, sizeof(block[0]), 
+		mpz_import(m, LCP_BLOCK_SIZE, 1, sizeof(block[0]),
 				0, 0, block);
 
 		mpz_powm(c, m, pub.e, pub.n);
 
-		memset(block, 0, BLOCK_SIZE);
+		memset(block, 0, LCP_BLOCK_SIZE);
 
 		mpz_export(block, &enc_len, 1, sizeof(char), 0, 0, c);
 
@@ -145,13 +162,13 @@ LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len,
 
 
 LCP_API int lcp_decrypt(char **out, int *out_len, char *in, int in_len, 
-		struct pvt_key pvt)
+		struct lcp_pvt_key pvt)
 {
 	int i;
-	int num = in_len / BLOCK_SIZE;
+	int num = in_len / LCP_BLOCK_SIZE;
 	int msg_idx = 0;
-	char block[BLOCK_SIZE];
-	int size = num * BUF_SIZE;
+	char block[LCP_BLOCK_SIZE];
+	int size = num * LCP_BUF_SIZE;
 	char *ret;
 	mpz_t m;
 	mpz_t c;
@@ -164,14 +181,14 @@ LCP_API int lcp_decrypt(char **out, int *out_len, char *in, int in_len,
 	mpz_inits(m, c, NULL);
 
 	for(i = 0; i < num; i++) {
-		mpz_import(c, BLOCK_SIZE, 1, sizeof(char), 0, 0, 
-				in + (i * BLOCK_SIZE));
+		mpz_import(c, LCP_BLOCK_SIZE, 1, sizeof(char), 0, 0, 
+				in + (i * LCP_BLOCK_SIZE));
 
 		mpz_powm(m, c, pvt.d, pvt.n);
 
 		mpz_export(block, NULL, 1, sizeof(char), 0, 0, m);
 
-		memcpy(ret + (i * BUF_SIZE), block + 2, BUF_SIZE);
+		memcpy(ret + (i * LCP_BUF_SIZE), block + 2, LCP_BUF_SIZE);
 	}
 
 	*out = ret;

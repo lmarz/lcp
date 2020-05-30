@@ -16,3 +16,7 @@ $(OBJ_DIR)/%.o: %.c dirmake
 
 dirmake:
 	@mkdir -p $(OBJ_DIR)
+
+.PHONY: test
+test:
+	gcc test/main.c ./lcp.a ./miniupnpc/libminiupnpc.a -lgmp -lm

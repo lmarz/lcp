@@ -1,26 +1,56 @@
-#ifndef _RSA_H
-#define _RSA_H
+#ifndef _LCP_RSA_H
+#define _LCP_RSA_H
 
 #include "define.h"
 #include <gmp.h>
 
-#define MODULUS_SIZE 1024
-#define BLOCK_SIZE (MODULUS_SIZE/8)
-#define BUF_SIZE (BLOCK_SIZE-2)
-#define BUFFER_SIZE ((MODULUS_SIZE/8)/2)
+#define LCP_MODULUS_SIZE     1024
+#define LCP_BLOCK_SIZE       (LCP_MODULUS_SIZE/8)
+#define LCP_BUF_SIZE         (LCP_BLOCK_SIZE-2)
+#define LCP_BUFFER_SIZE      ((LCP_MODULUS_SIZE/8)/2)
 
-struct pvt_key {
-    mpz_t n;
-    mpz_t e;
-    mpz_t d;
-    mpz_t p;
-    mpz_t q;
+
+struct lcp_pvt_key {
+	mpz_t n;
+	mpz_t e;
+	mpz_t d;
+	mpz_t p;
+	mpz_t q;
 };
 
-struct pub_key {
-    mpz_t n;
-    mpz_t e;
+struct lcp_pub_key {
+	mpz_t n;
+	mpz_t e;
 };
+
+
+/*
+ * Initialize a private key and setup the basic values.
+ *
+ * @pvt: Pointer to the private-key
+ */
+LCP_API void lcp_init_pvt(struct lcp_pvt_key *pvt);
+
+
+/*
+ * Initialize the public key and setup the basic values.
+ *
+ * @pub: Pointer to the public-key
+ */
+LCP_API void lcp_init_pub(struct lcp_pub_key *pub);
+
+
+/*
+ * 
+ */
+LCP_API void lcp_clear_pvt(struct lcp_pvt_key *pvt);
+
+
+/*
+ * 
+ */
+LCP_API void lcp_clear_pub(struct lcp_pub_key *pub);
+
 
 /*
  * Generate both the privat and public keys, which can then be used to encrypt
@@ -28,21 +58,12 @@ struct pub_key {
  * called. So to get a new pair of keys, just call this function again. It is
  * technically not required to free the keys when exiting, but it still is the
  * prefered way. Note that the functions assumes that both keys have already
- * been initialized.
+ * been initialized, by calling both lcp_init_pvt() and lcp_init_pub().
  *
  * @pvt: Pointer to a private-key-struct
  * @pub: Pointer to a public-key-struct
  */
-LCP_API void lcp_gen_keys(struct pvt_key *pvt, struct pub_key *pub);
-
-
-/*
- * Free both the private and public keys, and free the allocated memory.
- *
- * @pvt: Pointer to the private-key-struct
- * @pub: Pointer to the public-key-struct
- */
-LCP_API void lcp_free_keys(struct pvt_key *pvt, struct pub_key *pub);
+LCP_API void lcp_gen_keys(struct lcp_pvt_key *pvt, struct lcp_pub_key *pub);
 
 
 /*
@@ -63,7 +84,7 @@ LCP_API void lcp_free_keys(struct pvt_key *pvt, struct pub_key *pub);
  * Returns: 0 on success or -1 if an error occurred
  */
 LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len, 
-		struct pub_key pub);
+		struct lcp_pub_key pub);
 
 
 /*
@@ -82,6 +103,6 @@ LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len,
  * Returns: 0 on success or -1 if an error occurred
  */
 LCP_API int lcp_decrypt(char **out, int *out_len, char *in, int in_len, 
-		struct pvt_key pvt);
+		struct lcp_pvt_key pvt);
 
 #endif

@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int upnp_prep(struct upnp_handle *hdl)
+
+LCP_API int lcp_upnp_prep(struct lcp_upnp_hdl *hdl)
 {
 	struct UPNPUrls urls;
 	struct IGDdatas data;
@@ -16,16 +17,12 @@ extern int upnp_prep(struct upnp_handle *hdl)
 		return -1;
 
 	/* Discover all uPnP devices */
-	if(!(dev = upnpDiscover(2000, NULL, NULL, 0, 0, 2, NULL))) {
-		ERR_LOG(("Failed to discover uPnP-devices"));
+	if(!(dev = upnpDiscover(2000, NULL, NULL, 0, 0, 2, NULL)))
 		goto err_free_dev;
-	}
 
 	/* Retrieve a valid Internet Gateway Device */
-	if((UPNP_GetValidIGD(dev, &urls, &data, addr, 64)) != 1) {
-		ERR_LOG(("Faild to retrieve valid uPnP IGD"));
+	if((UPNP_GetValidIGD(dev, &urls, &data, addr, 64)) != 1)
 		goto err_free_urls;
-	}
 
 	hdl->urls = urls;
 	hdl->data = data;
@@ -42,7 +39,7 @@ err_free_dev:
 }
 
 
-extern void upnp_close(struct upnp_handle *hdl)
+LCP_API void lcp_upnp_close(struct lcp_upnp_hdl *hdl)
 {
 	if(!hdl)
 		return;
@@ -52,7 +49,7 @@ extern void upnp_close(struct upnp_handle *hdl)
 }
 
 
-extern int upnp_add(struct upnp_handle *hdl, unsigned short in,
+LCP_API int lcp_upnp_add(struct lcp_upnp_hdl *hdl, unsigned short in,
 		unsigned int ex)
 {	
 	char int_port_str[6];
@@ -67,16 +64,15 @@ extern int upnp_add(struct upnp_handle *hdl, unsigned short in,
 			ext_port_str,
 			int_port_str,
 			hdl->addr, 
-			"vasall", 
+			"LCP", 
 			"UDP",
 			0,
 			"0"
 			);
-
 }
 
 
-extern void upnp_remv(struct upnp_handle *hdl, unsigned short ex)
+LCP_API void lcp_upnp_remv(struct lcp_upnp_hdl *hdl, unsigned short ex)
 {
 	char ext_port_str[6];
 
