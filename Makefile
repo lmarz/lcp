@@ -1,7 +1,7 @@
 CC            := gcc
 OUT_FILE_NAME := lcp.a
 
-CFLAGS        := -fPIC -O0 -g -Wall -c -pedantic -std=c89 -ansi -I.
+CFLAGS        := -fPIC -O0 -g -Wall -c -pedantic -std=c89 -ansi -I. -I./inc
 
 # The directory to put the object-files into
 OBJ_DIR       := ./obj
