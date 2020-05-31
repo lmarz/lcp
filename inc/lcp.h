@@ -31,9 +31,6 @@ struct lcp_pck_que {
 	time_t tout;
 };
 
-
-#define LCP_CON_F_PROXY      0x01
-
 struct lcp_con;
 struct lcp_con {
 	struct lcp_con *next;
@@ -90,7 +87,8 @@ struct lcp_ctx {
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-LCP_API struct lcp_ctx *lcp_init(short base, short num);
+LCP_API struct lcp_ctx *lcp_init(short base, short num, 
+		struct sockaddr_in6 *disco, struct sockaddr_in6 *proxy);
 
 
 /*
@@ -179,6 +177,13 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr);
  * 
  */
 LCP_API void lcp_con_update(struct lcp_ctx *ctx);
+
+
+/*
+ * 
+ */
+LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf, 
+		int len);
 
 
 /*

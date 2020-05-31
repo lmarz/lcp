@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,8 +107,8 @@ LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl, char flg,
 	time_t ti;
 	int i;
 	char buf[512];
-	struct sockaddr *addr;
-	int sz = sizeof(struct sockaddr_in6);
+
+	if(upnp) {/* Prevent warning for not using parameters */ }
 
 	time(&ti);
 
@@ -115,16 +116,14 @@ LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl, char flg,
 		if(tbl->mask[i] == 0)
 			continue;
 
-		addr = (struct sockaddr *)&tbl->dst[i];
-
 		/* When port preservation is used */
-		if((flg & LCP_F_PPR) != LCP_F_PPR) {
+		if((tbl->mask[i] & LCP_SOCK_M_KEEPALIVE) == LCP_SOCK_M_KEEPALIVE) {
 			/* Send a keepalive-message */
 			if(ti >= tbl->tout[i]) {
 				buf[0] = 0;
 				buf[1] = 0;
-
-				sendto(tbl->fd[i], buf, 2, 0, addr, sz);
+				
+				lcp_sock_send(tbl, i, &tbl->dst[i], buf, 2);
 				tbl->tout[i] = ti + LCP_SOCK_PPR_TOUT; 
 			}
 		}
@@ -215,6 +214,10 @@ LCP_API int lcp_sock_send(struct lcp_sock_tbl *tbl, short slot,
 		struct sockaddr_in6 *dst, char *buf, int len)
 {
 	int tmp = sizeof(struct sockaddr_in6);
+	
+	printf("Send to %s:%d\n", lcp_str_addr(AF_INET6, &dst->sin6_addr),
+			dst->sin6_port);
+
 	return sendto(tbl->fd[slot], buf, len, 0, (struct sockaddr *)dst, tmp);
 }
 
@@ -223,10 +226,12 @@ LCP_API void lcp_print_sock(struct lcp_sock_tbl *tbl)
 {
 	int i;
 
-	printf("   \tMASK\tFD\tINT_PORT\tEXT_PORT\tTOUT\n");
+	printf("\n___________________  SOCKET-TABLE  ____________________\n");
+
+	printf("     MASK   FD   CNT   INT_PORT   EXT_PORT         TOUT\n");
 	for(i = 0; i < LCP_SOCK_NUM; i++) {
-		printf("[%02x]\t%d\t%d\t%d   \t%d   \t%lu\n", i,
-				tbl->mask[i], tbl->fd[i], 
+		printf("%02x:  %4d   %2d   %3d   %8d   %8d   %10lu\n", i,
+				tbl->mask[i], tbl->fd[i], tbl->con_c[i],
 				tbl->int_port[i], tbl->ext_port[i], 
 				tbl->tout[i]);
 	}

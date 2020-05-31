@@ -16,6 +16,7 @@
 
 /* Define the flag-bits */
 #define LCP_F_ENC      0x01
+#define LCP_F_PROXY    0x02
 
 struct lcp_hdr {
 	uint16_t id;

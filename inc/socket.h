@@ -14,13 +14,14 @@
 #define LCP_F_PMP      0x20
 #define LCP_F_PCP      0x40
 
-#define LCP_SOCK_NUM         11
+#define LCP_SOCK_NUM         10
 #define LCP_SOCK_MIN_PORT    25290
 #define LCP_SOCK_PPR_TOUT    8
 #define LCP_SOCK_PCK_TOUT    2
 
-#define LCP_SOCK_M_NONE      0x00
-#define LCP_SOCK_M_INIT      0x01
+#define LCP_SOCK_M_NONE          0x00
+#define LCP_SOCK_M_INIT          0x01
+#define LCP_SOCK_M_KEEPALIVE     0x02
 
 struct lcp_sock_tbl {
 	short num;

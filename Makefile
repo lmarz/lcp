@@ -21,7 +21,8 @@ CC         := gcc
 # Error flags for compiling
 ERRFLAGS   := -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition
 # Compiling flags here
-CFLAGS     := -g -O0 -ansi -std=c89 -pedantic -I. -I./inc/
+# TODO: Add pedantic
+CFLAGS     := -g -O0 -ansi -std=c89 -I. -I./inc/
 
 # The linker to use
 LINKER     := gcc

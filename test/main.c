@@ -35,11 +35,25 @@ int main(void)
 	int s;
 	int port;
 
+	struct sockaddr_in6 disco;
+	struct sockaddr_in6 proxy;
+
 	struct lcp_evt evt;
 
 	srand(time(NULL));
 
-	if(!(ctx = lcp_init((rand() % 9090 ) + 3000, 0))) {
+	memset(&disco, 0, addr_sz);
+	disco.sin6_family = AF_INET6;
+	disco.sin6_port = htons(4243);
+	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &disco.sin6_addr);
+
+	memset(&proxy, 0, addr_sz);
+	proxy.sin6_family = AF_INET6;
+	proxy.sin6_port = htons(4244);
+	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &proxy.sin6_addr);
+
+	port = (rand() % 9090 ) + 3000;
+	if(!(ctx = lcp_init(port, 0, &disco, &proxy))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;
 	}
@@ -53,6 +67,7 @@ int main(void)
 
 		if(kbhit()) {
 			char c = getchar();
+			int type;
 			switch(c) {
 				case 0x63:    /* Press C to start connection */
 					printf("Connect\n");
@@ -62,12 +77,15 @@ int main(void)
 					printf("Port: ");
 					scanf("%d", &port);
 
+					printf("Type (0: P2P, 2: PROXY): ");
+					scanf("%d", &type);
+
 					memset(&addr, 0, addr_sz);
 					addr.sin6_family = AF_INET6;
 					addr.sin6_port = htons(port);
 					inet_pton(AF_INET6, buf, &addr.sin6_addr);
 
-					lcp_connect(ctx, -1, &addr, LCP_F_ENC);
+					lcp_connect(ctx, -1, &addr, (uint8_t)type);
 					break;
 
 				case 0x76:    /* Press V to close connection */
