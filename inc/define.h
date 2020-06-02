@@ -5,4 +5,6 @@
 #define LCP_API      extern
 #define LCP_GLOBAL   extern
 
+#define LCP_DEBUG    0
+
 #endif

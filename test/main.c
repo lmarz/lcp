@@ -18,9 +18,6 @@
 	(byte & 0x01 ? '1' : '0') 
 
 
-static int kbhit(void);
-
-
 int main(void)
 {
 	struct lcp_ctx *ctx;
@@ -35,12 +32,27 @@ int main(void)
 	int s;
 	int port;
 
+	struct sockaddr_in6 main;
 	struct sockaddr_in6 disco;
 	struct sockaddr_in6 proxy;
+	
+	struct sockaddr_in6 peer;
+	char flg;
+	short open_port;
 
 	struct lcp_evt evt;
+	int i;
 
 	srand(time(NULL));
+
+#if 0
+	/*
+	 * Setup server-addresses for the different servers.
+	 */	
+	memset(&main, 0, addr_sz);
+	main.sin6_family = AF_INET6;
+	main.sin6_port = htons(4242);
+	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2e:b2b1", &main.sin6_addr);
 
 	memset(&disco, 0, addr_sz);
 	disco.sin6_family = AF_INET6;
@@ -51,9 +63,28 @@ int main(void)
 	proxy.sin6_family = AF_INET6;
 	proxy.sin6_port = htons(4244);
 	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &proxy.sin6_addr);
+#endif
 
+	memset(&main, 0, addr_sz);
+	main.sin6_family = AF_INET6;
+	main.sin6_port = htons(25252);
+	inet_pton(AF_INET6, "::1", &main.sin6_addr);
+
+	memset(&disco, 0, addr_sz);
+	disco.sin6_family = AF_INET6;
+	disco.sin6_port = htons(4243);
+	inet_pton(AF_INET6, "::1", &disco.sin6_addr);
+
+	memset(&proxy, 0, addr_sz);
+	proxy.sin6_family = AF_INET6;
+	proxy.sin6_port = htons(4244);
+	inet_pton(AF_INET6, "::1", &proxy.sin6_addr);
+
+	/*
+	 * Initialize the LCP-framework.
+	 */
 	port = (rand() % 9090 ) + 3000;
-	if(!(ctx = lcp_init(port, 0, &disco, &proxy))) {
+	if(!(ctx = lcp_init(port, 0, 0, &disco, &proxy))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;
 	}
@@ -62,97 +93,65 @@ int main(void)
 	printf("External address: %s\n", lcp_str_addr(AF_INET6, &ctx->ext_addr));
 	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->flg));
 
+	lcp_print_sock(&ctx->sock);
+
+	if(lcp_connect(ctx, -1, &main, 0) < 0)
+		goto err_close_lcp;
+
 	while(running) {
 		lcp_update(ctx);
-
-		if(kbhit()) {
-			char c = getchar();
-			int type;
-			switch(c) {
-				case 0x63:    /* Press C to start connection */
-					printf("Connect\n");
-					
-					printf("Addr: ");
-					scanf("%s", buf);
-					printf("Port: ");
-					scanf("%d", &port);
-
-					printf("Type (0: P2P, 2: PROXY): ");
-					scanf("%d", &type);
-
-					memset(&addr, 0, addr_sz);
-					addr.sin6_family = AF_INET6;
-					addr.sin6_port = htons(port);
-					inet_pton(AF_INET6, buf, &addr.sin6_addr);
-
-					lcp_connect(ctx, -1, &addr, (uint8_t)type);
-					break;
-
-				case 0x76:    /* Press V to close connection */
-					printf("Disconnect\n");
-					
-					printf("Addr: ");
-					scanf("%s", buf);
-					printf("Port: ");
-					scanf("%d", &port);
-
-					memset(&addr, 0, addr_sz);
-					addr.sin6_family = AF_INET6;
-					addr.sin6_port = htons(port);
-					inet_pton(AF_INET6, buf, &addr.sin6_addr);
-
-					lcp_disconnect(ctx, &addr);
-					break;
-				
-				case 0x64:    /* Press D to show socket-table */
-					lcp_print_sock(&ctx->sock);
-					break;
-
-				case 0x66:    /* Press F to show connection-list  */
-					lcp_con_print(ctx);
-					break;
-
-				case 0x71:    /* Press Q to quit */
-					running = 0;
-					break;
-
-				case 0x6d:    /* Press M to send message */
-					printf("Send message\n");
-					
-					printf("Addr: ");
-					scanf("%s", buf);
-					printf("Port: ");
-					scanf("%d", &port);
-
-					memset(&addr, 0, addr_sz);
-					addr.sin6_family = AF_INET6;
-					addr.sin6_port = htons(port);
-					inet_pton(AF_INET6, buf, &addr.sin6_addr);
-
-					printf("Message: ");
-					scanf("%s", buf);
-
-					lcp_send(ctx, &addr, buf, strlen(buf) + 1);
-					break;
-			}
-		}
 
 		while(lcp_pull_evt(ctx, &evt)) {
 			switch(evt.type) {
 				case 0x01:
-					printf("Connected to %s:%d on port %d\n",
+					printf("Connected to %s:%d using slot %d\n",
 							lcp_str_addr(AF_INET6, &evt.addr.sin6_addr),
-							evt.addr.sin6_port, evt.slot);
+							ntohs(evt.addr.sin6_port), evt.slot);
+					
+					if(memcmp(&main, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
+						short tmp;
+						lcp_sock_get_open(&ctx->sock, ctx->flg, &tmp, 1);
+
+						printf("Connected to the server\n");
+
+						open_port = htons(ctx->sock.int_port[tmp]);
+
+						buf[0] = 0x43;
+						memcpy(buf + 1, &ctx->ext_addr, 16);
+						memcpy(buf + 17, &open_port, 2);
+						buf[19] = ctx->flg;
+
+						printf("Register on server\n");
+						lcp_send(ctx, &evt.addr, buf, 20);
+					}
+					
+					else if(memcmp(&peer, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
+						printf("Connected to peer\n");
+					}
 					break;
 
 				case 0x02:
-					printf("Disconnected from %s:%d on port %d\n",
+					printf("Disconnected from %s:%d on slot %d\n",
 							lcp_str_addr(AF_INET6, &evt.addr.sin6_addr),
-							evt.addr.sin6_port, evt.slot);
+							ntohs(evt.addr.sin6_port), evt.slot);
 					break;
 
 				case(0x03):
-					printf("Received %d bytes: %s\n", evt.len, evt.buf);
+					if(evt.buf[0] == 0x44) {
+						memset(&peer, 0, addr_sz);
+						peer.sin6_family = AF_INET6;
+						memcpy(&peer.sin6_addr, evt.buf + 1, 16);
+						memcpy(&peer.sin6_port, evt.buf + 17, 2);
+						memcpy(&flg, evt.buf + 18, 1);
+
+						printf("Connect to peer %s:%d using port %d\n",
+							lcp_str_addr(AF_INET6, &peer.sin6_addr),
+							ntohs(peer.sin6_port), ntohs(open_port));
+
+						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
+
+						lcp_connect(ctx, open_port, &peer, flg);
+					}
 					break;
 			}
 
@@ -160,37 +159,13 @@ int main(void)
 			lcp_del_evt(&evt);
 		}
 
-		sleep(1);
+		usleep(50);
 	}
 
+err_close_lcp:
+	/*
+	 * Shutdown the LCP-framework.
+	 */
 	lcp_close(ctx);
 	return 0;
 }
-
-
-static int kbhit(void)
-{
-	struct termios oldt, newt;
-	int ch;
-	int oldf;
-
-	tcgetattr(STDIN_FILENO, &oldt);
-	newt = oldt;
-	newt.c_lflag &= ~(ICANON | ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-	fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-	ch = getchar();
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-	fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-	if(ch != EOF) {
-		ungetc(ch, stdin);
-		return 1;
-	}
-
-	return 0;
-}
-

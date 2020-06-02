@@ -87,7 +87,7 @@ struct lcp_ctx {
  *
  * Returns: 0 on success or -1 if an error occurred
  */
-LCP_API struct lcp_ctx *lcp_init(short base, short num, 
+LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw, 
 		struct sockaddr_in6 *disco, struct sockaddr_in6 *proxy);
 
 

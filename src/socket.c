@@ -163,8 +163,8 @@ LCP_API int lcp_sock_get_open(struct lcp_sock_tbl *tbl, char flg, short *ptr,
 			c++;
 
 		}
-		/* If uPnP is used, the socket can only be used once */
-		else if((flg & LCP_F_UPNP) == LCP_F_UPNP) {
+		/* If PPR is used, the socket can only be used once */
+		else if((flg & LCP_F_PPR) == LCP_F_PPR) {
 			if(tbl->con_c[i] == 0) {
 				ptr[c] = i;
 				c++;
@@ -214,9 +214,11 @@ LCP_API int lcp_sock_send(struct lcp_sock_tbl *tbl, short slot,
 		struct sockaddr_in6 *dst, char *buf, int len)
 {
 	int tmp = sizeof(struct sockaddr_in6);
-	
+
+#if LCP_DEBUG
 	printf("Send to %s:%d\n", lcp_str_addr(AF_INET6, &dst->sin6_addr),
-			dst->sin6_port);
+			ntohs(dst->sin6_port));
+#endif
 
 	return sendto(tbl->fd[slot], buf, len, 0, (struct sockaddr *)dst, tmp);
 }

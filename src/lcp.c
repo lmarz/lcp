@@ -116,7 +116,7 @@ LCP_INTERN int lcp_get_intern(struct lcp_ctx *ctx)
 	return ret;
 }
 
-LCP_API struct lcp_ctx *lcp_init(short base, short num, 
+LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw, 
 		struct sockaddr_in6 *disco, struct sockaddr_in6 *proxy)
 {
 	struct lcp_ctx *ctx;
@@ -124,30 +124,42 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num,
 	if(!(ctx = malloc(sizeof(struct lcp_ctx))))
 		return NULL;
 
-	/* Set initial values of variables of the context */
-	ctx->flg = 0;
-	ctx->evt = NULL;
+	if(ovw) {
+		/* Set initial values of variables of the context */
+		ctx->flg = ovw;
+		ctx->evt = NULL;
 
-	/* Set the initial values of the connection-list */
-	ctx->con.tbl = NULL;
-	ctx->con.num = 0;
+		/* Set the initial values of the connection-list */
+		ctx->con.tbl = NULL;
+		ctx->con.num = 0;
+	}
+	else {
+		/* Set initial values of variables of the context */
+		ctx->flg = 0;
+		ctx->evt = NULL;
 
-	/* Initialize the default server-addresses */
-	if(lcp_init_addr(ctx) < 0)
-		goto err_free_ctx;
+		/* Set the initial values of the connection-list */
+		ctx->con.tbl = NULL;
+		ctx->con.num = 0;
 
-	if(disco != NULL)
-		ctx->disco_addr = *disco;
-	if(proxy != NULL)
-		ctx->proxy_addr = *proxy;
+		/* Initialize the default server-addresses */
+		if(lcp_init_addr(ctx) < 0)
+			goto err_free_ctx;
 
-	/* Discover the LCP_APIal address and test port preservation */
-	if(lcp_discover(ctx) < 0)
-		goto err_free_ctx;
+		if(disco != NULL)
+			ctx->disco_addr = *disco;
+		if(proxy != NULL)
+			ctx->proxy_addr = *proxy;
 
-	/* Discover the internal address */
-	if(lcp_get_intern(ctx) < 0)
-		goto err_free_ctx;
+		/* Discover the LCP_APIal address and test port preservation */
+		if(lcp_discover(ctx) < 0)
+			goto err_free_ctx;
+
+		/* Discover the internal address */
+		if(lcp_get_intern(ctx) < 0)
+			goto err_free_ctx;
+
+	}
 
 	/* Initialize the socket-table */
 	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
@@ -204,6 +216,7 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 		struct sockaddr_in6 *dst, uint8_t flg)
 {
 	short slot;
+	int te;
 	struct lcp_sock_tbl *tbl = &ctx->sock;
 
 	if(port >= 0) {
@@ -218,8 +231,10 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 			return -1;
 	}
 	else {
-		if(lcp_sock_get_open(tbl, ctx->flg, &slot, 1) < 1)
+		if((te = lcp_sock_get_open(tbl, ctx->flg, &slot, 1)) < 1) {
+			printf("%d\n", te);
 			return -1;
+		}
 	}
 
 	/* Add a new connection to the connection-table */
@@ -270,10 +285,12 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	/* Get the connection */
 	if(!(con = lcp_con_sel_addr(ctx, addr)))
 		return -1;
-			
+
 	/* If encryption should be used */
 	if((con->flg & LCP_F_ENC) == LCP_F_ENC) {
+#if LCP_DEBUG
 		printf("Use encryption\n");
+#endif
 		lcp_encrypt(&cont_buf, &cont_len, buf, len, con->pub);
 	}
 	else {
@@ -361,8 +378,8 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 			ctx->sock.dst[slot] = ctx->proxy_addr;
 		else
 			ctx->sock.dst[slot] = *dst;
-		
-		
+
+
 		ctx->sock.tout[slot] = ti;
 	}
 
@@ -471,7 +488,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr == NULL)
 					continue;
 
+#if LCP_DEBUG
 				printf("Recv INI-ACK\n");
+#endif
 
 				if(ptr->status >= 0x02)
 					continue;
@@ -492,7 +511,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				char e[1];
 				int tmp = sizeof(char);
 
+#if LCP_DEBUG
 				printf("Recv INI\n");
+#endif
 
 				if(ptr != NULL)
 					continue;
@@ -523,7 +544,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		if((hdr.cb & LCP_C_FIN) == LCP_C_FIN) {
 			/* FIN-ACK */
 			if(hdr.cb & LCP_C_ACK) {
+#if LCP_DEBUG
 				printf("Recv FIN-ACK\n");
+#endif
 
 				if(ptr->status >= 0x06)
 					continue;
@@ -533,7 +556,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			}
 			/* Just FIN */
 			else {
+#if LCP_DEBUG
 				printf("Recv FIN\n");
+#endif
 
 				if(ptr == NULL)
 					continue;
@@ -551,7 +576,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 			/* Acknowledge new connection */
 			if(ptr->status == 0x01) {
+#if LCP_DEBUG
 				printf("Recv ACK\n");
+#endif
 
 				ptr->status = 0x03;
 
@@ -564,7 +591,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 			/* Acknowledge closing a connection */
 			if(ptr->status == 0x05) {
+#if LCP_DEBUG
 				printf("Recv ACK\n");
+#endif
 
 				/* Create a new event */
 				lcp_push_evt(ctx, LCP_DISCONNECTED, ptr->slot,
@@ -599,6 +628,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			int tmp = sizeof(struct lcp_hdr);
 			char *cont_buf;
 			int cont_len;
+
+#if LCP_DEBUG
+			printf("Recv PSH\n");
+#endif
 
 			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
 				lcp_decrypt(&cont_buf, &cont_len, buf + tmp, 
@@ -670,7 +703,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				/* Failed to send initial-packet */
 			}
 
+#if LCP_DEBUG
 			printf("Send INI\n");
+#endif
 			goto next;
 		}
 		/* Send INI-ACK */
@@ -696,7 +731,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				/* Failed to send initial-packet */
 			}
 
+#if LCP_DEBUG
 			printf("Send INI-ACK\n");
+#endif
 			goto next;
 		}
 		/* Send ACK, responding to INI-ACK */
@@ -717,7 +754,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, &ptr->addr, 
 					NULL, 0);
 
+#if LCP_DEBUG
 			printf("Send ACK\n");
+#endif
 			goto next;
 		}
 		/* Send FIN */
@@ -739,7 +778,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				/* Failed to send closing-request */
 			}
 
+#if LCP_DEBUG
 			printf("Send FIN\n");
+#endif
 			goto next;
 		}
 		/* Send FIN-ACK */
@@ -762,7 +803,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				/* Failed to send acknowledge-packet */
 			}
 
+#if LCP_DEBUG
 			printf("Send FIN-ACK\n");
+#endif
 			goto next;
 		}
 		/* Send ACK, responding to FIN-ACK */
@@ -783,7 +826,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			/* Remove the entry from the connection-list */
 			lcp_con_remv(ctx, &ptr->addr);
 
+#if LCP_DEBUG
 			printf("Send ACK\n");
+#endif
 			goto next;
 		}
 
@@ -818,7 +863,9 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 	int ret;
 
 	if((con->flg & LCP_F_PROXY) == LCP_F_PROXY) {
+#if LCP_DEBUG
 		printf("Use Proxy\n");
+#endif
 
 		pck_len = len + 20;
 		if(!(pck_buf = malloc(pck_len)))
@@ -832,7 +879,9 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 		addr = &ctx->proxy_addr;
 	}
 	else {
+#if LCP_DEBUG
 		printf("Dont use proxy\n");
+#endif
 		pck_buf = buf;
 		pck_len = len;
 
