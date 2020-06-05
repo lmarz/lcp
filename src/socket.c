@@ -137,6 +137,8 @@ LCP_API short lcp_sock_sel_port(struct lcp_sock_tbl *tbl, short port)
 	int i;
 
 	for(i = 0; i < tbl->num; i++) {
+		printf("Compare %d == %d\n", tbl->int_port[i], port);
+
 		if(tbl->int_port[i] == port)
 			return i;
 	}

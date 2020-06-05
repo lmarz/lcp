@@ -134,7 +134,7 @@ int main(void)
 
 						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
 
-						printf("%d\n", lcp_connect(ctx, open_port, &peer, flg));
+						printf("%d\n", lcp_connect(ctx, ntohs(open_port), &peer, flg));
 					}
 					break;
 			}
