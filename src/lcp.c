@@ -221,12 +221,15 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 	struct lcp_con *con;
 
 	if(port >= 0) {
+		printf("Select port\n");
 		if((slot = lcp_sock_sel_port(tbl, port)) < 0)
 			return -1;
 
+		printf("Check mask\n");
 		if(tbl->mask[slot] == 0)
 			return -1;
 
+		printf("Check network\n");
 		if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
 				tbl->con_c[slot] > 0)
 			return -1;
@@ -237,6 +240,8 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 			return -1;
 		}
 	}
+
+	printf("Add new connection\n");
 
 	/* Add a new connection to the connection-table */
 	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
@@ -521,14 +526,19 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				printf("Recv INI\n");
 #endif
 
-				if(ptr != NULL)
-					continue;
+				if(ptr != NULL) {
+					if(ptr->status > 0x00)
+						continue;
 
-				/* Push new entry into the connection-list */
+					con = ptr;
+				}
+				else {
+/* Push new entry into the connection-list */
 				con = lcp_con_add(ctx, &cli, slot, hdr.flg);
 
 				if(con == NULL) {
 					/* TODO: Reset  connection*/
+				}
 				}
 
 				/* Read public-key */
