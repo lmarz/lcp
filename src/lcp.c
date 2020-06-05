@@ -396,16 +396,21 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 			ctx->sock.dst[slot] = *dst;
 
 		ctx->sock.tout[slot] = ti;
+		printf("Modified socket mask\n");
 	}
 
 	/* Increment the number of connections using socket */
 	ctx->sock.con_c[slot]++;
 
 	if(tbl->tbl == NULL) {
+		printf("Set root\n");
+
 		tbl->tbl = con;
 		tbl->num = 1;
 	}
 	else {
+		printf("Append\n");
+
 		ptr = tbl->tbl;
 		while(ptr->next != NULL)
 			ptr = ptr->next;
@@ -706,6 +711,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
+				printf("Connection timed out\n");
+
 				/* Failed to initialize connection*/
 				goto next;
 			}
@@ -720,6 +727,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
+				printf("Failed to send initial packet\n");
 				/* Failed to send initial-packet */
 			}
 
