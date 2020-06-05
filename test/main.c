@@ -76,7 +76,7 @@ int main(void)
 	printf("External address: %s\n", lcp_str_addr(AF_INET6, &ctx->ext_addr));
 	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->flg));
 
-	lcp_print_sock(&ctx->sock);
+	lcp_sock_print(&ctx->sock);
 
 	/* Connect to the server */
 	if(lcp_connect(ctx, -1, &main, 0) < 0)
@@ -94,7 +94,7 @@ int main(void)
 					
 					if(memcmp(&main, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
 						short tmp;
-						lcp_sock_get_open(&ctx->sock, ctx->flg, &tmp, 1);
+						lcp_sock_get_open(&ctx->sock, &tmp, 1);
 
 						printf("Connected to the server\n");
 
@@ -126,7 +126,7 @@ int main(void)
 						peer.sin6_family = AF_INET6;
 						memcpy(&peer.sin6_addr, evt.buf + 1, 16);
 						memcpy(&peer.sin6_port, evt.buf + 17, 2);
-						memcpy(&flg, evt.buf + 18, 1);
+						memcpy(&flg, evt.buf + 19, 1);
 
 						printf("Connect to peer %s:%d using port %d\n",
 							lcp_str_addr(AF_INET6, &peer.sin6_addr),
