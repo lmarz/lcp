@@ -76,7 +76,7 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	ctx->ext_addr = res.sin6_addr;
 
 	if(ntohs(res.sin6_port) == port) {
-		ctx->flg = ctx->flg | LCP_F_PPR;
+		ctx->flg = ctx->flg | LCP_NET_F_PPR;
 	}
 
 	close(sockfd);
@@ -192,7 +192,7 @@ LCP_API void lcp_close(struct lcp_ctx *ctx)
 	lcp_con_close(ctx);
 
 	/* Close all sockets and clear the socket-table */
-	lcp_sock_close(&ctx->sock, ctx->flg, &ctx->upnp);
+	lcp_sock_close(&ctx->sock);
 
 	/* Free the context-struct */
 	free(ctx);
@@ -221,18 +221,18 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 	struct lcp_con *con;
 
 	if(port >= 0) {
-		if((slot = lcp_sel_port(tbl, port)) < 0)
+		if((slot = lcp_sock_sel_port(tbl, port)) < 0)
 			return -1;
 
 		if(tbl->mask[slot] == 0)
 			return -1;
 
-		if((ctx->flg & LCP_F_UPNP) == LCP_F_UPNP && 
+		if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
 				tbl->con_c[slot] > 0)
 			return -1;
 	}
 	else {
-		if((tmp = lcp_sock_get_open(tbl, ctx->flg, &slot, 1)) < 1) {
+		if((tmp = lcp_sock_get_open(tbl, &slot, 1)) < 1) {
 			printf("%d\n", tmp);
 			return -1;
 		}
@@ -244,7 +244,7 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 
 	/* Send a single packet to the destination */
 	tmp = 0;
-	lcp_con_send(ctx, con, (char *)&te, 2);
+	lcp_con_send(ctx, con, (char *)&tmp, 2);
 
 	return slot;
 }
@@ -265,7 +265,7 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 LCP_API void lcp_update(struct lcp_ctx *ctx)
 {
 	/* Update the socket-table */
-	lcp_sock_update(&ctx->sock, ctx->flg, &ctx->upnp);
+	lcp_sock_update(&ctx->sock);
 
 	/* Update the connection-list */
 	lcp_con_update(ctx);
@@ -376,7 +376,7 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	lcp_init_pub(&con->pub);
 
 	/* Update the socket */
-	if((ctx->flg & LCP_F_PPR) == LCP_F_PPR) {
+	if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
 		ctx->sock.mask[slot] += LCP_SOCK_M_KEEPALIVE;
 
 		if((flg & LCP_F_PROXY) == LCP_F_PROXY)
@@ -428,7 +428,7 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 				prev->next = ptr->next;
 
 			/* Update the socket */
-			if((ctx->flg & LCP_F_PPR) == LCP_F_PPR) {
+			if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
 				ctx->sock.mask[ptr->slot] -= 
 					LCP_SOCK_M_KEEPALIVE;
 			}
@@ -462,7 +462,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 	time(&ti);
 
-	while(lcp_recv(sock, buf, 512, &len, &cli, &slot)) {
+	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
 		buf[len] = 0;
 
 		/* Drop packet if it'S to short */

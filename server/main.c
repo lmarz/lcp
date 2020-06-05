@@ -87,7 +87,7 @@ int main(void)
 								buf[0] = 0x44;
 								memcpy(buf + 1, &peers[(i + 1) % 2].alias.sin6_addr, 16);
 								memcpy(buf + 17, &peers[(i + 1) % 2].alias.sin6_port, 2);
-								memcpy(buf + 19, &peers[(i + 1) % 2].flg, 1);
+								buf[19] = 1;
 								lcp_send(ctx, &peers[i].real, buf, 20);
 							}
 						}
