@@ -10,7 +10,7 @@
 
 To install and compile this library, run the following commands:
   $ sudo apt install subversion
-  $ make dirmake
   $ svn checkout https://github.com/miniupnp/miniupnp/trunk/miniupnpc
   $ cd miniupnpc && make && cd ..
+  $ mkdir obj
   $ make
