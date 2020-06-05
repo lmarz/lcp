@@ -358,6 +358,8 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 
 	time(&ti);
 
+	printf("New connection using: %02x\n", flg);
+
 	if(!(con = malloc(sizeof(struct lcp_con))))
 		return NULL;
 
@@ -379,11 +381,10 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
 		ctx->sock.mask[slot] += LCP_SOCK_M_KEEPALIVE;
 
-		if((flg & LCP_F_PROXY) == LCP_F_PROXY)
+		if((flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY)
 			ctx->sock.dst[slot] = ctx->proxy_addr;
 		else
 			ctx->sock.dst[slot] = *dst;
-
 
 		ctx->sock.tout[slot] = ti;
 	}
@@ -867,7 +868,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 	struct sockaddr_in6 *addr;
 	int ret;
 
-	if((con->flg & LCP_F_PROXY) == LCP_F_PROXY) {
+	if((con->flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY) {
 #if LCP_DEBUG
 		printf("Use Proxy\n");
 #endif
@@ -895,7 +896,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 
 	ret = lcp_sock_send(&ctx->sock, con->slot, addr, pck_buf, pck_len);
 
-	if((con->flg & LCP_F_PROXY) == LCP_F_PROXY) {
+	if((con->flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY) {
 		free(pck_buf);
 	}
 
