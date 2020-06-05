@@ -10,8 +10,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+
 LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg, 
-		struct lcp_upnp_hdl *upnp, short base, short num)
+		void *hdl, short base, short num)
 {
 	short i;
 	short port;
@@ -20,12 +21,13 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 	struct sockaddr *addr_ptr = (struct sockaddr *)&addr;
 	int addr_sz = sizeof(addr);
 
-
 	base = (base <= 0) ? LCP_SOCK_MIN_PORT : base;
 	num = (num <= 0 || num > LCP_SOCK_NUM) ? LCP_SOCK_NUM : num;
 
 	tbl->base = base;
 	tbl->num = num;
+	tbl->flg = flg;
+	tbl->hdl = hdl;
 
 	/* Setup all sockets */
 	for(i = 0; i < num; i++) {
@@ -55,9 +57,9 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 		if(fcntl(sockfd, F_SETFL, O_NONBLOCK)  < 0)
 			goto err_close_socks;
 
-		/* Create a new uPnP entry on the NAT if possible */
-		if((flg & LCP_F_UPNP) != 0 ) {
-			if(lcp_upnp_add(upnp, port, port) != 0)
+		/* Forward ports on the NAT using uPnP entry if possible */
+		if((flg & LCP_NET_F_UPNP) != 0 ) {
+			if(lcp_upnp_add(hdl, port, port) != 0)
 				goto err_close_socks;
 		}
 
@@ -70,8 +72,8 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 err_close_socks:
 	/* Close all opened sockets */
 	for(; i >= 0; i--) {
-		if((flg & LCP_F_UPNP) != 0)
-			lcp_upnp_remv(upnp, tbl->ext_port[i]);
+		if((flg & LCP_NET_F_UPNP) != 0)
+			lcp_upnp_remv(hdl, tbl->ext_port[i]);
 
 		close(tbl->fd[i]);
 
@@ -83,14 +85,16 @@ err_close_socks:
 }
 
 
-LCP_API void lcp_sock_close(struct lcp_sock_tbl *tbl, char flg,
-		struct lcp_upnp_hdl *upnp)
+LCP_API void lcp_sock_close(struct lcp_sock_tbl *tbl)
 {
 	int i;
 
-	for(i = 0; i < LCP_SOCK_NUM; i++) {
-		if((flg & LCP_F_UPNP) != 0)
-			lcp_upnp_remv(upnp, tbl->ext_port[i]);
+	for(i = 0; i < tbl->num; i++) {
+		if(tbl->mask[i] == 0)
+			continue;
+
+		if((tbl->flg & LCP_NET_F_UPNP) != 0)
+			lcp_upnp_remv(tbl->hdl, tbl->ext_port[i]);
 
 		close(tbl->fd[i]);
 
@@ -101,18 +105,15 @@ LCP_API void lcp_sock_close(struct lcp_sock_tbl *tbl, char flg,
 }
 
 
-LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl, char flg,
-		struct lcp_upnp_hdl *upnp)
+LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl)
 {
 	time_t ti;
 	int i;
 	char buf[512];
 
-	if(upnp) {/* Prevent warning for not using parameters */ }
-
 	time(&ti);
 
-	for(i = 0; i < LCP_SOCK_NUM; i++) {
+	for(i = 0; i < tbl->num; i++) {
 		if(tbl->mask[i] == 0)
 			continue;
 
@@ -131,11 +132,11 @@ LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl, char flg,
 }
 
 
-LCP_API short lcp_sel_port(struct lcp_sock_tbl *tbl, short port)
+LCP_API short lcp_sock_sel_port(struct lcp_sock_tbl *tbl, short port)
 {
 	int i;
 
-	for(i = 0; i < LCP_SOCK_NUM; i++) {
+	for(i = 0; i < tbl->num; i++) {
 		if(tbl->int_port[i] == port)
 			return i;
 	}
@@ -144,8 +145,7 @@ LCP_API short lcp_sel_port(struct lcp_sock_tbl *tbl, short port)
 }
 
 
-LCP_API int lcp_sock_get_open(struct lcp_sock_tbl *tbl, char flg, short *ptr,
-		short num)
+LCP_API int lcp_sock_get_open(struct lcp_sock_tbl *tbl, short *ptr, short num)
 {
 	int i;
 	int c = 0;
@@ -153,22 +153,19 @@ LCP_API int lcp_sock_get_open(struct lcp_sock_tbl *tbl, char flg, short *ptr,
 	if(num <= 0)
 		return 0;
 
-	for(i = 0; i < LCP_SOCK_NUM; i++) {
+	for(i = 0; i < tbl->num; i++) {
 		if(tbl->mask[i] == 0)
 			continue;
 
 		/* If a socket is open, it can be used multiple times */
-		if((flg & LCP_F_OPEN) == LCP_F_OPEN) {
+		if((tbl->flg & LCP_NET_F_OPEN) == LCP_NET_F_OPEN) {
 			ptr[c] = i;
 			c++;
 
 		}
-		/* If PPR is used, the socket can only be used once */
-		else if((flg & LCP_F_PPR) == LCP_F_PPR) {
-			if(tbl->con_c[i] == 0) {
-				ptr[c] = i;
-				c++;
-			}
+		else if(tbl->con_c[i] == 0) {
+			ptr[c] = i;
+			c++;
 		}
 
 		if(c >= num)
@@ -179,7 +176,7 @@ LCP_API int lcp_sock_get_open(struct lcp_sock_tbl *tbl, char flg, short *ptr,
 }
 
 
-LCP_API int lcp_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
+LCP_API int lcp_sock_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
 		int *len, struct sockaddr_in6 *addr, short *slot)
 {
 	int i;
@@ -189,7 +186,7 @@ LCP_API int lcp_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
 	if(poll(tbl->pfds, LCP_SOCK_NUM, 0) < 0)
 		return 0;
 
-	for(i = 0; i < LCP_SOCK_NUM; i++) {
+	for(i = 0; i < tbl->num; i++) {
 		if(tbl->pfds[i].revents != 0) {
 			if(tbl->pfds[i].revents & POLLIN) {
 				r = recvfrom(tbl->fd[i], buf, max_len, 0, 
@@ -224,7 +221,7 @@ LCP_API int lcp_sock_send(struct lcp_sock_tbl *tbl, short slot,
 }
 
 
-LCP_API void lcp_print_sock(struct lcp_sock_tbl *tbl)
+LCP_API void lcp_sock_print(struct lcp_sock_tbl *tbl)
 {
 	int i;
 

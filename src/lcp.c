@@ -64,7 +64,7 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 
 	serv_ptr = (struct sockaddr *)&ctx->disco_addr;
 
-	/* Send a request to the stun-server */
+	/* Send a request to the disco-server */
 	if(sendto(sockfd, "hi\0", 3, 0, serv_ptr, size) < 0)
 		goto err_close_sockfd;
 
@@ -216,8 +216,9 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 		struct sockaddr_in6 *dst, uint8_t flg)
 {
 	short slot;
-	int te;
+	int tmp;
 	struct lcp_sock_tbl *tbl = &ctx->sock;
+	struct lcp_con *con;
 
 	if(port >= 0) {
 		if((slot = lcp_sel_port(tbl, port)) < 0)
@@ -231,15 +232,19 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 			return -1;
 	}
 	else {
-		if((te = lcp_sock_get_open(tbl, ctx->flg, &slot, 1)) < 1) {
-			printf("%d\n", te);
+		if((tmp = lcp_sock_get_open(tbl, ctx->flg, &slot, 1)) < 1) {
+			printf("%d\n", tmp);
 			return -1;
 		}
 	}
 
 	/* Add a new connection to the connection-table */
-	if(!lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg))
+	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
 		return -1;
+
+	/* Send a single packet to the destination */
+	tmp = 0;
+	lcp_con_send(ctx, con, (char *)&te, 2);
 
 	return slot;
 }
