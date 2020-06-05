@@ -19,6 +19,7 @@ int main(int argc, char **argv)
 	int size = sizeof(addr);
 	int r;
 	char buf[512];
+	char str[INET6_ADDRSTRLEN];
 
 	if(argc < 2) {
 		printf("usage: %s <port>\n", argv[0]);
@@ -48,13 +49,18 @@ int main(int argc, char **argv)
 				sendto(sockfd, buf, 2, 0, from_ptr, size);
 			}
 
-
 			/* Set the address to relay packet to */
 			memset(&to, 0, size);
 			to.sin6_family = AF_INET6;
 			port = *(short *)(buf + 2);
 			to.sin6_port = port;
 			memcpy(&to.sin6_addr, buf + 4, 16);
+
+			inet_ntop(AF_INET6, &from.sin6_addr, str, INET6_ADDRSTRLEN);
+			printf("%s:%d\t-->\t", str, ntohs(from.sin6_port));
+
+			inet_ntop(AF_INET6, &to.sin6_addr, str, INET6_ADDRSTRLEN);
+			printf("%s:%d\n", str, ntohs(to.sin6_port));
 
 			/* Update packet header */
 			*(short *)buf = 0xbeef;
