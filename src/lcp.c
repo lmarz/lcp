@@ -72,7 +72,7 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	if(recvfrom(sockfd, &res, size, 0, NULL, NULL) < 0)
 		goto err_close_sockfd;
 
-	/* Copy the LCP_APIal IPv6-address and port */
+	/* Copy the external IPv6-address and port */
 	ctx->ext_addr = res.sin6_addr;
 
 	if(ntohs(res.sin6_port) == port) {
@@ -125,6 +125,8 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		return NULL;
 
 	if(ovw) {
+		printf("Use overwrite\n");
+
 		/* Set initial values of variables of the context */
 		ctx->flg = ovw;
 		ctx->evt = NULL;
@@ -134,6 +136,8 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		ctx->con.num = 0;
 	}
 	else {
+		printf("Don't use overwrite\n");
+
 		/* Set initial values of variables of the context */
 		ctx->flg = 0;
 		ctx->evt = NULL;
@@ -151,7 +155,7 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(proxy != NULL)
 			ctx->proxy_addr = *proxy;
 
-		/* Discover the LCP_APIal address and test port preservation */
+		/* Discover the external address and test port preservation */
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
 
@@ -533,12 +537,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					con = ptr;
 				}
 				else {
-/* Push new entry into the connection-list */
-				con = lcp_con_add(ctx, &cli, slot, hdr.flg);
+					/* Push new entry into the connection-list */
+					con = lcp_con_add(ctx, &cli, slot, hdr.flg);
 
-				if(con == NULL) {
-					/* TODO: Reset  connection*/
-				}
+					if(con == NULL) {
+						/* TODO: Reset  connection*/
+					}
 				}
 
 				/* Read public-key */
