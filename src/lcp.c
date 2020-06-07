@@ -391,6 +391,8 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	con->count = 0;
 	con->tout = 0;
 
+	con->proxy_id = 0;
+
 	/* Setup public key */
 	lcp_init_pub(&con->pub);
 
@@ -482,7 +484,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	short slot;
 	time_t ti;
 	struct sockaddr_in6 cli;
-
+	uint16_t proxy_id;
+		
 	time(&ti);
 
 	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
@@ -492,12 +495,18 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		if(len < (int)sizeof(struct lcp_hdr))
 			continue;
 
+		memcpy(&proxy_id, buf + 2, 2);
+
 		/* 
 		 * Handle packets from the proxy.
 		 */
 		if((unsigned char)buf[0] == 0xff) {
-			if(!(ptr = lcp_con_sel(ctx, &cli, slot)))
+			printf("From proxy!!!!!!\n");
+
+			if(!(ptr = lcp_con_sel_proxy(ctx, proxy_id)))
 				continue;
+
+			printf("After\n");
 
 			/*
 			 * Successfully joined link. 
@@ -1004,16 +1013,13 @@ LCP_API struct lcp_con *lcp_con_sel_addr(struct lcp_ctx *ctx,
 }
 
 
-LCP_API struct lcp_con *lcp_con_sel(struct lcp_ctx *ctx, 
-		struct sockaddr_in6 *addr, short slot)
+LCP_API struct lcp_con *lcp_con_sel_proxy(struct lcp_ctx *ctx, uint16_t id)
 {
 	struct lcp_con *ptr;
-	int size = sizeof(struct sockaddr_in6);
 
 	ptr = ctx->con.tbl;
 	while(ptr != NULL) {
-		if(memcmp(&ptr->addr, addr, size) == 0 &&
-				ptr->slot == slot)
+		if(ptr->proxy_id == id && (ptr->flg & 1) == 0)
 			return ptr;
 
 		ptr = ptr->next;

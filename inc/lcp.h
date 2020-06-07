@@ -194,8 +194,7 @@ LCP_API struct lcp_con *lcp_con_sel_addr(struct lcp_ctx *ctx,
 		struct sockaddr_in6 *addr);
 
 
-LCP_API struct lcp_con *lcp_con_sel(struct lcp_ctx *ctx, 
-		struct sockaddr_in6 *addr, short slot);
+LCP_API struct lcp_con *lcp_con_sel_proxy(struct lcp_ctx *ctx, uint16_t id);
 
 
 /*
