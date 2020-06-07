@@ -484,6 +484,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	int len;
 	short slot;
 	time_t ti;
+	int i;
 	struct sockaddr_in6 cli;
 	uint16_t proxy_id;
 		
@@ -509,7 +510,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			/*
 			 * Successfully joined link. 
 			 */
-			if(buf[1] == 0x05 && ptr->status == 0x01) {
+			if(cont[1] == 0x05 && ptr->status == 0x01) {
 				/* Await other link to initate connection */
 				ptr->status = 0x02;
 
@@ -520,7 +521,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			 * Other link connected to the link, initiate new
 			 * connection.
 			 */
-			else if(buf[1] == 0x04 && ptr->status == 0x02) {
+			else if(cont[1] == 0x04 && ptr->status == 0x02) {
 				/* Update status to initiate conection */
 				ptr->status = 0x04;
 
@@ -528,11 +529,19 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
-			printf("Receive from server\n");
+			printf("Receive from proxy\n");
 
 			/* Skip the proxy-header */
+
+			for(i = 0; i < len; i++)
+				printf("%02x ", cont[i]);
+			printf("\n");
+
+
 			cont += 4;
 			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
+
+			printf("header: %02x\n", hdr.cb);
 		}
 		else {
 			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
@@ -984,6 +993,8 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 		pck_buf[0] = 0xff;
 		pck_buf[1] = 0x03;
 		memcpy(pck_buf + 2, &con->proxy_id, 2);
+
+		memcpy(pck_buf + 4, buf, len);
 
 		addr = &ctx->proxy_addr;
 	}
