@@ -145,6 +145,13 @@ int main(int argc, char **argv)
 							lnk->mask[i] = 1;
 							lnk->addr[i] = from;
 							cli_send(sockfd, &from, 0x05, id);
+
+							if(lnk->num == 2) {
+								for(i = 0; i < 2; i++)
+									cli_send(sockfd, &from, 0x04, id);
+
+							}
+
 							goto next;
 						}
 					}

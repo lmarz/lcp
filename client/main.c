@@ -38,7 +38,9 @@ int main(void)
 	
 	struct sockaddr_in6 peer;
 	char flg;
+	uint16_t proxy_id;
 	short open_port;
+	struct lcp_con *con;
 
 	struct lcp_evt evt;
 	int i;
@@ -129,6 +131,7 @@ int main(void)
 						memcpy(&peer.sin6_addr, evt.buf + 1, 16);
 						memcpy(&peer.sin6_port, evt.buf + 17, 2);
 						memcpy(&flg, evt.buf + 19, 1);
+						memcpy(&proxy_id, evt.buf + 20, 2);
 
 						printf("Connect to peer %s:%d using port %d\n",
 							lcp_str_addr(AF_INET6, &peer.sin6_addr),
@@ -136,7 +139,8 @@ int main(void)
 
 						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
 
-						printf("%d\n", lcp_connect(ctx, ntohs(open_port), &peer, flg));
+						con = lcp_connect(ctx, ntohs(open_port), &peer, flg);
+						con->proxy_id = proxy_id;
 					}
 					break;
 			}

@@ -115,7 +115,7 @@ LCP_API int lcp_get_slot(struct lcp_ctx *ctx);
  *
  * Returns: Either a slot in the socket-table or -1 if an error occurred
  */
-LCP_API short lcp_connect(struct lcp_ctx *ctx, short port, 
+LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port, 
 		struct sockaddr_in6 *dst, uint8_t flg);
 
 
