@@ -480,6 +480,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	struct lcp_hdr hdr;
 	struct lcp_sock_tbl *sock = &ctx->sock;
 	char buf[512];
+	char *cont;
 	int len;
 	short slot;
 	time_t ti;
@@ -489,24 +490,21 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	time(&ti);
 
 	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
-		buf[len] = 0;
+		cont = buf;
+		cont[len] = 0;
 
 		/* Drop packet if it'S to short */
-		if(len < (int)sizeof(struct lcp_hdr))
+		if(len < 4)
 			continue;
 
-		memcpy(&proxy_id, buf + 2, 2);
+		memcpy(&proxy_id, cont + 2, 2);
 
 		/* 
 		 * Handle packets from the proxy.
 		 */
-		if((unsigned char)buf[0] == 0xff) {
-			printf("From proxy!!!!!!\n");
-
+		if((unsigned char)cont[0] == 0xff) {
 			if(!(ptr = lcp_con_sel_proxy(ctx, proxy_id)))
 				continue;
-
-			printf("After\n");
 
 			/*
 			 * Successfully joined link. 
@@ -516,24 +514,28 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->status = 0x02;
 
 				printf("Wait other link to join link\n");
-
+				continue;
 			}
 			/* 
 			 * Other link connected to the link, initiate new
 			 * connection.
 			 */
-			else if(buf[1] == 0x04) {
+			else if(buf[1] == 0x04 && ptr->status == 0x02) {
 				/* Update status to initiate conection */
 				ptr->status = 0x04;
 
 				printf("Link complete\n");
+				continue;
 			}
 
-			continue;
+			/* Skip the proxy-header */
+			cont += 4;
+			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
 		}
-		
-		memcpy(&hdr, buf, sizeof(struct lcp_hdr));
-		ptr = lcp_con_sel_addr(ctx, &cli);
+		else {
+			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
+			ptr = lcp_con_sel_addr(ctx, &cli);
+		}
 
 		/* INI */
 		if((hdr.cb & LCP_C_INI) == LCP_C_INI) {
@@ -554,8 +556,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					continue;
 
 				/* Read public-key */
-				memcpy(n, buf + 4, 128);
-				memcpy(e, buf + 132, 1);
+				memcpy(n, cont + 4, 128);
+				memcpy(e, cont + 132, 1);
 
 				mpz_import(ptr->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(ptr->pub.e, 1, 1, tmp, 0, 0, e);
@@ -589,8 +591,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				}
 
 				/* Read public-key */
-				memcpy(n, buf + 4, 128);
-				memcpy(e, buf + 132, 1);
+				memcpy(n, cont + 4, 128);
+				memcpy(e, cont + 132, 1);
 
 				mpz_import(con->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(con->pub.e, 1, 1, tmp, 0, 0, e);
@@ -697,11 +699,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 #endif
 
 			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
-				lcp_decrypt(&cont_buf, &cont_len, buf + tmp, 
+				lcp_decrypt(&cont_buf, &cont_len, cont + tmp, 
 						len - tmp, ctx->pvt);
 			}
 			else {
-				cont_buf = buf + tmp;
+				cont_buf = cont + tmp;
 				cont_len = len - tmp;
 			}
 
@@ -973,14 +975,13 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 		printf("Use Proxy\n");
 #endif
 
-		pck_len = len + 20;
+		pck_len = len + 4;
 		if(!(pck_buf = malloc(pck_len)))
 			return -1;
 
-		*(short *)pck_buf = 0xbeef;
-		memcpy(pck_buf + 2, &con->addr.sin6_port, 2);
-		memcpy(pck_buf + 4, &con->addr.sin6_addr, 16);
-		memcpy(pck_buf + 20, buf, len);
+		pck_buf[0] = 0xff;
+		pck_buf[1] = 0x03;
+		memcpy(pck_buf + 3, &con->proxy_id, 2);
 
 		addr = &ctx->proxy_addr;
 	}
