@@ -528,6 +528,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
+			printf("Receive from server\n");
+
 			/* Skip the proxy-header */
 			cont += 4;
 			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
@@ -981,7 +983,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 
 		pck_buf[0] = 0xff;
 		pck_buf[1] = 0x03;
-		memcpy(pck_buf + 3, &con->proxy_id, 2);
+		memcpy(pck_buf + 2, &con->proxy_id, 2);
 
 		addr = &ctx->proxy_addr;
 	}

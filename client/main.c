@@ -140,6 +140,7 @@ int main(void)
 						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
 
 						con = lcp_connect(ctx, ntohs(open_port), &peer, flg);
+						printf("use id: %02x\n", proxy_id);
 						con->proxy_id = proxy_id;
 					}
 					break;
