@@ -239,10 +239,8 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 			return -1;
 	}
 	else {
-		if((tmp = lcp_sock_get_open(tbl, &slot, 1)) < 1) {
-			printf("%d\n", tmp);
+		if((tmp = lcp_sock_get_open(tbl, &slot, 1)) < 1)
 			return -1;
-		}
 	}
 
 	printf("Add new connection\n");
@@ -250,6 +248,14 @@ LCP_API short lcp_connect(struct lcp_ctx *ctx, short port,
 	/* Add a new connection to the connection-table */
 	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
 		return -1;
+
+	/* Set the status of the connection */
+	con->status = 0x01;
+
+	/* If a direct connection should be extablished, skip proxy */
+	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
+		con->status = 0x04;
+	}
 
 	/* Send a single packet to the destination */
 	tmp = 0;
@@ -266,7 +272,7 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 	if(!(ptr = lcp_con_sel_addr(ctx, addr)))
 		return -1;
 
-	ptr->status = 0x05;
+	ptr->status = 0x08;
 	return 0;
 }
 
@@ -379,9 +385,8 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	con->flg = flg;
 	con->que = NULL;
 
-	con->status = 0;
 	con->count = 0;
-	con->tout = ti + 1;
+	con->tout = 0;
 
 	/* Setup public key */
 	lcp_init_pub(&con->pub);
@@ -512,7 +517,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				printf("Recv INI-ACK\n");
 #endif
 
-				if(ptr->status >= 0x02)
+				if(ptr->status >= 0x06)
 					continue;
 
 				/* Read public-key */
@@ -523,7 +528,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				mpz_import(ptr->pub.e, 1, 1, tmp, 0, 0, e);
 
 				/* Require socket to send ACK */
-				ptr->status = 0x02;
+				ptr->status = 0x06;
 			}
 			/* Just INI */
 			else {
@@ -536,7 +541,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 #endif
 
 				if(ptr != NULL) {
-					if(ptr->status > 0x00)
+					if(ptr->status > 0x04)
 						continue;
 
 					con = ptr;
@@ -558,7 +563,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				mpz_import(con->pub.e, 1, 1, tmp, 0, 0, e);
 
 				/* Require socket to send INI-ACK */
-				con->status = 0x01;
+				con->status = 0x05;
 				con->tout = ti + 1;
 				con->count = 0;
 			}
@@ -573,11 +578,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				printf("Recv FIN-ACK\n");
 #endif
 
-				if(ptr->status >= 0x06)
+				if(ptr->status >= 0x0a)
 					continue;
 
 				/* Require socket to send ACK */
-				ptr->status = 0x06;
+				ptr->status = 0x0a;
 			}
 			/* Just FIN */
 			else {
@@ -589,7 +594,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					continue;
 
 				/* Require socket to send FIN-ACK */
-				ptr->status = 0x05;
+				ptr->status = 0x09;
 				con->tout = ti + 1;
 				con->count = 0;
 			}
@@ -600,12 +605,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			struct lcp_pck_que *pck;
 
 			/* Acknowledge new connection */
-			if(ptr->status == 0x01) {
+			if(ptr->status == 0x05) {
 #if LCP_DEBUG
 				printf("Recv ACK\n");
 #endif
 
-				ptr->status = 0x03;
+				ptr->status = 0x07;
 
 				/* Create new event */
 				lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, 
@@ -615,7 +620,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			}
 
 			/* Acknowledge closing a connection */
-			if(ptr->status == 0x05) {
+			if(ptr->status == 0x09) {
 #if LCP_DEBUG
 				printf("Recv ACK\n");
 #endif
@@ -693,9 +698,12 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 	time(&ti);	
 
+	/* Process incoming packets */
 	lcp_con_recv(ctx);
 
 	ptr = ctx->con.tbl;
+	if(ptr == NULL) printf("No connections\n");
+
 	while(ptr != NULL) {
 		next = ptr->next;
 
@@ -705,8 +713,30 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		 * here, to make it look better.
 		 */
 
+		/* Send JOI */
+		if(ptr->status == 0x01 && ti >= ptr->tout) {
+			ptr->tout = ti + 1;
+			ptr->count++;
+		
+			if(ptr->count > 3) {
+				printf("Failed to connect to proxy\n");
+
+				/* Failed to initialize connection*/
+				goto next;
+			}
+
+			buf[0] = 0xff;
+			buf[1] = 0x01;
+			memcpy()
+
+#ifdef LCP_DEBUG
+			printf("Send JOI\n");
+#endif
+			goto next;
+		}
+
 		/* Send INI */
-		if(ptr->status == 0x00 && ti >= ptr->tout) {
+		if(ptr->status == 0x04 && ti >= ptr->tout) {
 			ptr->tout = ti + 1;
 			ptr->count++;
 
@@ -737,7 +767,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 		/* Send INI-ACK */
-		if(ptr->status == 0x01 && ti >= ptr->tout) {
+		if(ptr->status == 0x05 && ti >= ptr->tout) {
 			ptr->tout = ti + 1;
 			ptr->count++;
 
@@ -765,7 +795,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 		/* Send ACK, responding to INI-ACK */
-		if(ptr->status == 0x02) {
+		if(ptr->status == 0x06) {
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
 			hdr.flg = ptr->flg;
@@ -776,7 +806,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 			/* Mark connection as established */
-			ptr->status = 0x03;
+			ptr->status = 0x07;
 
 			/* Create new event */
 			lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, &ptr->addr, 
@@ -788,7 +818,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 		/* Send FIN */
-		if(ptr->status == 0x04 && ti >= ptr->tout) {	
+		if(ptr->status == 0x08 && ti >= ptr->tout) {	
 			ptr->tout = ti + 1;
 			ptr->count++;
 
@@ -812,7 +842,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 		/* Send FIN-ACK */
-		if(ptr->status == 0x05 && ti >= ptr->tout) {	
+		if(ptr->status == 0x09 && ti >= ptr->tout) {	
 			ptr->tout = ti + 1;
 			ptr->count++;
 
@@ -837,7 +867,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 		/* Send ACK, responding to FIN-ACK */
-		if(ptr->status == 0x06) {
+		if(ptr->status == 0x0a) {
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
 			hdr.flg = ptr->flg;
@@ -934,9 +964,9 @@ LCP_API struct lcp_con *lcp_con_sel_addr(struct lcp_ctx *ctx,
 
 	ptr = ctx->con.tbl;
 	while(ptr != NULL) {
-		if(memcmp(&ptr->addr, addr, size) == 0) {
+		if(memcmp(&ptr->addr, addr, size) == 0)
 			return ptr;
-		}
+
 		ptr = ptr->next;
 	}
 
@@ -944,18 +974,49 @@ LCP_API struct lcp_con *lcp_con_sel_addr(struct lcp_ctx *ctx,
 }
 
 
+LCP_API struct lcp_con *lcp_con_sel(struct lcp_ctx *ctx, 
+		struct sockaddr_in6 *addr, short slot)
+{
+	struct lcp_con *ptr;
+	int size = sizeof(struct sockaddr_in6);
+
+	ptr = ctx->con.tbl;
+	while(ptr != NULL) {
+		if(memcmp(&ptr->addr, addr, size) == 0 &&
+				ptr->slot == slot)
+			return ptr;
+
+		ptr = ptr->next;
+	}
+
+	return NULL;
+
+}
+
+
 LCP_API void lcp_con_print(struct lcp_ctx *ctx)
 {
 	struct lcp_con *ptr;
 	int i = 0;
+	short port;
+
+	printf("Connections:\n");
 
 	ptr = ctx->con.tbl;
 	while(ptr != NULL) {
-		printf("Connection %d: %p\n", i, (void *)ptr->next);
+		port = ctx->sock.int_port[ptr->slot];
+
+		printf("[%02x]: Flg: %02x, Port: %d(%d), Dst: %s:%d\n",
+				i, ptr->flg, port, ptr->slot,
+				lcp_str_addr(AF_INET6, &ptr->addr.sin6_addr),
+				ptr->addr.sin6_port);
 
 		i++;
 		ptr = ptr->next;
 	}
+
+	if(i == 0)
+		printf("No connections\n");
 }
 
 
@@ -1009,9 +1070,8 @@ LCP_API struct lcp_pck_que *lcp_que_sel(struct lcp_con *con, uint16_t id)
 
 	ptr = con->que;
 	while(ptr != NULL) {
-		if(ptr->id == id) {
+		if(ptr->id == id)
 			return ptr;
-		}
 	}
 
 	return NULL;

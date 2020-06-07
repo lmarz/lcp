@@ -82,6 +82,8 @@ int main(void)
 	if(lcp_connect(ctx, -1, &main, 0) < 0)
 		goto err_close_lcp;
 
+	lcp_con_print(ctx);
+
 	while(running) {
 		lcp_update(ctx);
 

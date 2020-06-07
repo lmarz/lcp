@@ -9,8 +9,8 @@
 #include <poll.h>
 
 /* Connnection-flags */
-#define LCP_CON_F_DIRECT   0x00
-#define LCP_CON_F_PROXY    0x01
+#define LCP_CON_F_PROXY    0x00
+#define LCP_CON_F_DIRECT   0x01
 
 /* Network-flags */
 #define LCP_NET_F_OPEN     0x04

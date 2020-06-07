@@ -66,6 +66,8 @@ int main(void)
 					printf("New request 0x%02x\n", (char)evt.buf[0]);
 
 					if(evt.buf[0] == 0x43) {
+						unsigned char *proxy_id = rand() % 0xffff;
+							
 						memcpy(&peers[peer_c].real, &evt.addr, sizeof(struct sockaddr_in6));
 					
 						memset(&peers[peer_c].alias, 0, sizeof(struct sockaddr_in6));
@@ -88,7 +90,8 @@ int main(void)
 								memcpy(buf + 1, &peers[(i + 1) % 2].alias.sin6_addr, 16);
 								memcpy(buf + 17, &peers[(i + 1) % 2].alias.sin6_port, 2);
 								buf[19] = 1;
-								lcp_send(ctx, &peers[i].real, buf, 20);
+								memcpy(buf + 20, &proxy_id, 2);
+								lcp_send(ctx, &peers[i].real, buf, 22);
 							}
 						}
 					}
