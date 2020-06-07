@@ -81,7 +81,7 @@ int main(void)
 	lcp_sock_print(&ctx->sock);
 
 	/* Connect to the server */
-	if(lcp_connect(ctx, -1, &main, 0) < 0)
+	if(lcp_connect(ctx, -1, &main, LCP_CON_F_DIRECT) < 0)
 		goto err_close_lcp;
 
 	lcp_con_print(ctx);

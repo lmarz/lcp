@@ -252,8 +252,11 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	/* Set the status of the connection */
 	con->status = 0x01;
 
+	printf("Flags %02x\n", flg);
+
 	/* If a direct connection should be extablished, skip proxy */
 	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
+		printf("Use direct\n");
 		con->status = 0x04;
 	}
 
@@ -395,7 +398,7 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
 		ctx->sock.mask[slot] += LCP_SOCK_M_KEEPALIVE;
 
-		if((flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY)
+		if((flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
 			ctx->sock.dst[slot] = ctx->proxy_addr;
 		else
 			ctx->sock.dst[slot] = *dst;
@@ -723,8 +726,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	lcp_con_recv(ctx);
 
 	ptr = ctx->con.tbl;
-	if(ptr == NULL) printf("No connections\n");
-
 	while(ptr != NULL) {
 		next = ptr->next;
 
@@ -750,7 +751,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			buf[1] = 0x01;
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
-			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
+			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0) {
 				printf("Failed to send JOI packet\n");
 
 				goto next;
@@ -949,7 +950,16 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 	struct sockaddr_in6 *addr;
 	int ret;
 
-	if((con->flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY) {
+	if((con->flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
+#if LCP_DEBUG
+		printf("Dont use proxy\n");
+#endif
+		pck_buf = buf;
+		pck_len = len;
+
+		addr = &con->addr;
+	}
+	else {
 #if LCP_DEBUG
 		printf("Use Proxy\n");
 #endif
@@ -965,19 +975,10 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 
 		addr = &ctx->proxy_addr;
 	}
-	else {
-#if LCP_DEBUG
-		printf("Dont use proxy\n");
-#endif
-		pck_buf = buf;
-		pck_len = len;
-
-		addr = &con->addr;
-	}
 
 	ret = lcp_sock_send(&ctx->sock, con->slot, addr, pck_buf, pck_len);
 
-	if((con->flg & LCP_CON_F_PROXY) == LCP_CON_F_PROXY) {
+	if((con->flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT) {
 		free(pck_buf);
 	}
 
