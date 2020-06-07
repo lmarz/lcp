@@ -38,7 +38,7 @@ int main(void)
 	/*
 	 * Initialize the LCP-framework.
 	 */
-	if(!(ctx = lcp_init(PORT, 0, LCP_F_OPEN, NULL, NULL))) {
+	if(!(ctx = lcp_init(PORT, 0, LCP_NET_F_OPEN, NULL, NULL))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;
 	}
@@ -66,7 +66,7 @@ int main(void)
 					printf("New request 0x%02x\n", (char)evt.buf[0]);
 
 					if(evt.buf[0] == 0x43) {
-						unsigned char *proxy_id = rand() % 0xffff;
+						unsigned char proxy_id = rand() % 0xffff;
 							
 						memcpy(&peers[peer_c].real, &evt.addr, sizeof(struct sockaddr_in6));
 					
