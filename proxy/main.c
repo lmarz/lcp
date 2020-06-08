@@ -67,8 +67,6 @@ int main(int argc, char **argv)
 
 	while(1) {
 		if((r = recvfrom(sockfd, buf, 512, 0, from_ptr, &size)) > 0) {
-			if(r < 24) continue;
-
 			/* Handle ping */
 			if(*(short *)buf == 0x00) {
 				buf[0] = 0;
@@ -76,16 +74,19 @@ int main(int argc, char **argv)
 				sendto(sockfd, buf, 2, 0, from_ptr, size);
 			}
 
+			printf("Code: %02x\n", (unsigned char)buf[0]);
 
 			/*
 			 * Validate packet-header and identify packet as
 			 * request.
 			 */
-			if(buf[0] != 0xf2)
+			if((unsigned char)buf[0] != 0xff)
 				continue;
 
 			op = buf[1];
 			memcpy(&id, buf + 2, 2);
+
+			printf("Received %d bytes, OP: %d, Id: %d\n", r, op, id);
 
 			/*
 			 * Join a link, or create a new one if necessary.
@@ -147,8 +148,9 @@ int main(int argc, char **argv)
 							cli_send(sockfd, &from, 0x05, id);
 
 							if(lnk->num == 2) {
+								printf("Linking complete\n");
 								for(i = 0; i < 2; i++)
-									cli_send(sockfd, &from, 0x04, id);
+									cli_send(sockfd, &lnk->addr[i], 0x04, id);
 
 							}
 
@@ -163,6 +165,8 @@ int main(int argc, char **argv)
 			 * Leave a link and delete if empty.
 			 */
 			else if(buf[1] == 0x02 && !(lnk = tbl_get(&tbl, id))) {
+				printf("Leave\n");
+
 				for(i = 0; i < 2; i++) {
 					if(memcmp(&lnk->addr[i], &from, size) == 0) {
 						lnk->num--;
@@ -176,7 +180,9 @@ int main(int argc, char **argv)
 			/* 
 			 * Relay packet using link.
 			 */
-			else if(buf[2] == 0x03) {
+			else if(buf[1] == 0x03) {
+				printf("Relay\n");
+
 				idx = -1;
 				for(i = 0; i < 2; i++) {
 					if(memcmp(&lnk->addr[i], &from, size) == 0) {
@@ -191,6 +197,7 @@ int main(int argc, char **argv)
 				if(lnk->mask[(idx + 1) % 2] == 0)
 					goto next;
 
+				printf("Relay message\n");
 				to_ptr = (struct sockaddr *)&lnk->addr[(idx + 1) % 2];
 				sendto(sockfd, buf, r, 0, to_ptr, size);
 				goto next;
@@ -252,7 +259,7 @@ extern int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id)
 	struct sockaddr *dst = (struct sockaddr *)addr;
 	int tmp = sizeof(struct sockaddr_in6);
 
-	buf[0] = 0xf2;
+	buf[0] = 0xff;
 	buf[1] = op;
 	memcpy(buf + 2, &id, 2);
 
