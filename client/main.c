@@ -68,7 +68,7 @@ int main(void)
 	/*
 	 * Initialize the LCP-framework.
 	 */
-	port = (rand() % 9090 ) + 3000;
+	port = (rand() % 9090 ) + 20000;
 	if(!(ctx = lcp_init(port, 0, 0, &disco, &proxy))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;
@@ -98,6 +98,8 @@ int main(void)
 					
 					if(memcmp(&main, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
 						short tmp;
+						unsigned char trans_flg = ctx->flg & 0x01;
+
 						lcp_sock_get_open(&ctx->sock, &tmp, 1);
 
 						printf("Connected to the server\n");
@@ -107,14 +109,21 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
-						buf[19] = (ctx->flg & 1);
+						buf[19] = trans_flg;
 
 						printf("Register on server\n");
 						lcp_send(ctx, &evt.addr, buf, 20);
 					}
 					
 					else if(memcmp(&peer, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
+						char buf[14] = "0Hello World\0";
+						buf[0] = 0x45;
+
 						printf("Connected to peer\n");
+
+						printf("Send message to server: %s\n", buf + 1);
+						lcp_send(ctx, &evt.addr, buf, 14);
+
 					}
 					break;
 
@@ -122,6 +131,17 @@ int main(void)
 					printf("Disconnected from %s:%d on slot %d\n",
 							lcp_str_addr(AF_INET6, &evt.addr.sin6_addr),
 							ntohs(evt.addr.sin6_port), evt.slot);
+
+					if(memcmp(&peer, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
+						printf("Disconnected from peer\n");
+
+						printf("Disconnect from server\n");
+						lcp_disconnect(ctx, &main);
+					}
+					else if(memcmp(&main, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
+						printf("Disconnected from server\n");
+						running = 0;
+					}
 					break;
 
 				case(0x03):
@@ -140,8 +160,19 @@ int main(void)
 						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
 
 						con = lcp_connect(ctx, ntohs(open_port), &peer, flg);
-						printf("use id: %02x\n", proxy_id);
 						con->proxy_id = proxy_id;
+					}
+					else if(evt.buf[0] == 0x45) {
+						evt.buf[0] = 0x46;
+
+						/* Respond to server */
+						lcp_send(ctx, &evt.addr, evt.buf, 14);
+					}
+					else if(evt.buf[0] == 0x46) {
+						printf("Received buffer: %s\n", evt.buf + 1);
+
+						printf("Disconnect from peer\n");
+						lcp_disconnect(ctx, &evt.addr);
 					}
 					break;
 			}
@@ -150,7 +181,7 @@ int main(void)
 			lcp_del_evt(&evt);
 		}
 
-		usleep(50);
+		usleep(20);
 	}
 
 err_close_lcp:
