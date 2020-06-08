@@ -68,7 +68,7 @@ int main(void)
 	/*
 	 * Initialize the LCP-framework.
 	 */
-	port = (rand() % 9090 ) + 20000;
+	port = (rand() % 9090 ) + 3000;
 	if(!(ctx = lcp_init(port, 0, 0, &disco, &proxy))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;

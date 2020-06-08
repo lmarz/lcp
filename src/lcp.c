@@ -157,6 +157,8 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(lcp_init_addr(ctx) < 0)
 			goto err_free_ctx;
 
+		printf("Init address\n");
+
 		if(disco != NULL)
 			ctx->disco_addr = *disco;
 		if(proxy != NULL)
@@ -166,15 +168,21 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
 
+		printf("Discover\n");
+
 		/* Discover the internal address */
 		if(lcp_get_intern(ctx) < 0)
 			goto err_free_ctx;
+
+		printf("Intern\n");
 
 	}
 
 	/* Initialize the socket-table */
 	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
 		goto err_free_ctx;
+
+	printf("Init intern\n");
 
 	/* Initialize key-buffers */
 	lcp_init_pvt(&ctx->pvt);
@@ -642,8 +650,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				/* Require connection to send FIN-ACK */
 				ptr->status = 0x09;
-				con->tout = ti + 1;
-				con->count = 0;
+				ptr->tout = ti + 1;
+				ptr->count = 0;
 			}
 			continue;
 		}
