@@ -75,17 +75,19 @@ int main(void)
 						peers[peer_c].alias.sin6_family = AF_INET6;
 						peers[peer_c].alias.sin6_port = *(short *)(evt.buf + 17);
 						memcpy(&peers[peer_c].alias.sin6_addr, evt.buf + 1, 16);
+						memcpy(&peers[peer_c].flg, evt.buf + 19, 1);
 					
 						printf("New Peer %s:%d\n",
 							lcp_str_addr(AF_INET6, &peers[peer_c].alias.sin6_addr),
 							ntohs(peers[peer_c].alias.sin6_port));
 
-						memcpy(&peers[peer_c].flg, buf + 3, 1);
+						printf("Flag: %02x\n", peers[peer_c].flg);
 						peers[peer_c].slot = evt.slot;
 						peer_c++;
 
 						if(peer_c >= 2) {
 							trans_flg = peers[0].flg & peers[1].flg;
+							printf("Trans-Flg: %02x\n", trans_flg);
 
 							for(i = 0; i < 2; i++) {
 								memset(buf, 0, 20);
