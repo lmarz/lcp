@@ -7,19 +7,18 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 
+#define ADDR6_SIZE sizeof(struct sockaddr_in6)
 
 /* Initialize the server-addresses for the DISCO- and PROXY-server */
 LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 {
-	int size = sizeof(struct sockaddr_in6);
-
-	memset(&ctx->disco_addr, 0, size);
+	memset(&ctx->disco_addr, 0, ADDR6_SIZE);
 	ctx->disco_addr.sin6_family = AF_INET6;
 	ctx->disco_addr.sin6_port = htons(DISCO_PORT);
 	if(inet_pton(AF_INET6, DISCO_IP, &ctx->disco_addr.sin6_addr) < 0)
 		return -1;
 
-	memset(&ctx->proxy_addr, 0, size);
+	memset(&ctx->proxy_addr, 0, ADDR6_SIZE);
 	ctx->proxy_addr.sin6_family = AF_INET6;
 	ctx->proxy_addr.sin6_port = htons(PROXY_PORT);
 	if(inet_pton(AF_INET6, PROXY_IP, &ctx->proxy_addr.sin6_addr) < 0)
@@ -38,7 +37,6 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	struct sockaddr *cli_ptr = (struct sockaddr *)&cli;
 	struct sockaddr *serv_ptr;
 	struct sockaddr_in6 res;
-	int size = sizeof(struct sockaddr_in6);
 	struct timeval tv;
 	int tv_sz = sizeof(struct timeval);
 
@@ -55,21 +53,21 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	port = 27000 + (rand() % 2525);
 
 	/* Bind the socket to the port */
-	memset(&cli, 0, size);
+	memset(&cli, 0, ADDR6_SIZE);
 	cli.sin6_family = AF_INET6;
 	cli.sin6_port = htons(port);
 	cli.sin6_addr = in6addr_any;
-	if(bind(sockfd, cli_ptr, size) < 0)
+	if(bind(sockfd, cli_ptr, ADDR6_SIZE) < 0)
 		goto err_close_sockfd;
 
 	serv_ptr = (struct sockaddr *)&ctx->disco_addr;
 
 	/* Send a request to the disco-server */
-	if(sendto(sockfd, "hi\0", 3, 0, serv_ptr, size) < 0)
+	if(sendto(sockfd, "hi\0", 3, 0, serv_ptr, ADDR6_SIZE) < 0)
 		goto err_close_sockfd;
 
 	/* Listen for a response from the server */
-	if(recvfrom(sockfd, &res, size, 0, NULL, NULL) < 0)
+	if(recvfrom(sockfd, &res, ADDR6_SIZE, 0, NULL, NULL) < 0)
 		goto err_close_sockfd;
 
 	/* Copy the external IPv6-address and port */
@@ -298,6 +296,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	char *pck_buf;
 	int pck_len;
 	struct lcp_hdr hdr;
+	int hdr_sz = sizeof(struct lcp_hdr);
 	uint16_t id;
 	struct lcp_con *con;
 
@@ -322,7 +321,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	}
 
 	/* Allocate memory for the packet */
-	pck_len = cont_len + sizeof(struct lcp_hdr);
+	pck_len = cont_len + hdr_sz;
 	if(!(pck_buf = malloc(pck_len)))
 		return -1;
 
@@ -333,8 +332,8 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	hdr.flg = con->flg;
 
 	/* Copy everything into the packet-buffer */
-	memcpy(pck_buf, &hdr, sizeof(struct lcp_hdr));
-	memcpy(pck_buf + sizeof(struct lcp_hdr), cont_buf, cont_len);
+	memcpy(pck_buf, &hdr, hdr_sz);
+	memcpy(pck_buf + hdr_sz, cont_buf, cont_len);
 
 	/* Add packet to the packet-queue */
 	if(lcp_que_add(con, pck_buf, pck_len, id) < 0)
@@ -437,13 +436,12 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 {
 	struct lcp_con *prev;
 	struct lcp_con *ptr;
-	int size = sizeof(struct sockaddr_in6);
 
 	prev = NULL;
 	ptr = ctx->con.tbl;
 
 	while(ptr != NULL) {
-		if(memcmp(&ptr->addr, addr, size) == 0) {
+		if(memcmp(&ptr->addr, addr, ADDR6_SIZE) == 0) {
 			/* Decrement the number of connections using socket */
 			ctx->sock.con_c[ptr->slot]--;	
 
@@ -480,7 +478,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	struct lcp_hdr hdr;
 	struct lcp_sock_tbl *sock = &ctx->sock;
 	char buf[512];
-	char *cont;
+	char *buf_ptr;
 	int len;
 	short slot;
 	time_t ti;
@@ -491,26 +489,26 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	time(&ti);
 
 	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
-		cont = buf;
-		cont[len] = 0;
+		buf_ptr = buf;
+		buf_ptr[len] = 0;
 
 		/* Drop packet if it'S to short */
 		if(len < 4)
 			continue;
 
-		memcpy(&proxy_id, cont + 2, 2);
+		memcpy(&proxy_id, buf_ptr + 2, 2);
 
 		/* 
 		 * Handle packets from the proxy.
 		 */
-		if((unsigned char)cont[0] == 0xff) {
+		if((unsigned char)buf_ptr[0] == 0xff) {
 			if(!(ptr = lcp_con_sel_proxy(ctx, proxy_id)))
 				continue;
 
 			/*
 			 * Successfully joined link. 
 			 */
-			if(cont[1] == 0x05 && ptr->status == 0x01) {
+			if(buf_ptr[1] == 0x05 && ptr->status == 0x01) {
 				/* Await other link to initate connection */
 				ptr->status = 0x02;
 
@@ -521,7 +519,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			 * Other link connected to the link, initiate new
 			 * connection.
 			 */
-			else if(cont[1] == 0x04 && ptr->status == 0x02) {
+			else if(buf_ptr[1] == 0x04 && ptr->status == 0x02) {
 				/* Update status to initiate conection */
 				ptr->status = 0x04;
 
@@ -529,24 +527,15 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
-			printf("Receive from proxy\n");
-
 			/* Skip the proxy-header */
-
-			for(i = 0; i < len; i++)
-				printf("%02x ", cont[i]);
-			printf("\n");
-
-
-			cont += 4;
-			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
-
-			printf("header: %02x\n", hdr.cb);
+			buf_ptr += 4;
 		}
 		else {
-			memcpy(&hdr, cont, sizeof(struct lcp_hdr));
 			ptr = lcp_con_sel_addr(ctx, &cli);
 		}
+
+		/* Get header from buffer */
+		memcpy(&hdr, buf_ptr, sizeof(struct lcp_hdr));
 
 		/* INI */
 		if((hdr.cb & LCP_C_INI) == LCP_C_INI) {
@@ -567,8 +556,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					continue;
 
 				/* Read public-key */
-				memcpy(n, cont + 4, 128);
-				memcpy(e, cont + 132, 1);
+				memcpy(n, buf_ptr + 4, 128);
+				memcpy(e, buf_ptr + 132, 1);
 
 				mpz_import(ptr->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(ptr->pub.e, 1, 1, tmp, 0, 0, e);
@@ -593,8 +582,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					con = ptr;
 				}
 				else {
-					/* Push new entry into the connection-list */
-					con = lcp_con_add(ctx, &cli, slot, hdr.flg);
+					/* Push new entry in connection-list */
+					con = lcp_con_add(ctx, &cli, slot,
+							hdr.flg);
 
 					if(con == NULL) {
 						/* TODO: Reset  connection*/
@@ -602,8 +592,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				}
 
 				/* Read public-key */
-				memcpy(n, cont + 4, 128);
-				memcpy(e, cont + 132, 1);
+				memcpy(n, buf_ptr + 4, 128);
+				memcpy(e, buf_ptr + 132, 1);
 
 				mpz_import(con->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(con->pub.e, 1, 1, tmp, 0, 0, e);
@@ -681,7 +671,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
-			memcpy(&hdr, buf, sizeof(struct lcp_hdr));
+			/* TODO: */
+			/* memcpy(&hdr, buf_ptr, sizeof(struct lcp_hdr)); */
 			if(!(pck = lcp_que_sel(ptr, hdr.id))) {
 				/* No packet with that ID has been sent */
 				continue;
@@ -704,17 +695,18 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			int tmp = sizeof(struct lcp_hdr);
 			char *cont_buf;
 			int cont_len;
+			struct sockaddr *addrp = (struct sockaddr *)&ptr->addr;
 
 #if LCP_DEBUG
 			printf("Recv PSH\n");
 #endif
 
 			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
-				lcp_decrypt(&cont_buf, &cont_len, cont + tmp, 
+				lcp_decrypt(&cont_buf, &cont_len, buf_ptr + tmp,
 						len - tmp, ctx->pvt);
 			}
 			else {
-				cont_buf = cont + tmp;
+				cont_buf = buf_ptr + tmp;
 				cont_len = len - tmp;
 			}
 
@@ -725,8 +717,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
 			sockfd = ctx->sock.fd[ptr->slot];
-			sendto(sockfd, &hdr, tmp, 0, (struct sockaddr *)&ptr->addr,
-					sizeof(struct sockaddr_in6));
+			sendto(sockfd, &hdr, tmp, 0, addrp, ADDR6_SIZE);
 		}
 	}
 }
@@ -1013,11 +1004,10 @@ LCP_API struct lcp_con *lcp_con_sel_addr(struct lcp_ctx *ctx,
 		struct sockaddr_in6 *addr)
 {
 	struct lcp_con *ptr;
-	int size = sizeof(struct sockaddr_in6);
 
 	ptr = ctx->con.tbl;
 	while(ptr != NULL) {
-		if(memcmp(&ptr->addr, addr, size) == 0)
+		if(memcmp(&ptr->addr, addr, ADDR6_SIZE) == 0)
 			return ptr;
 
 		ptr = ptr->next;

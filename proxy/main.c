@@ -24,9 +24,9 @@ struct proxy_table {
 	struct proxy_link *links[SLOT_NUM];
 };
 
-extern int tbl_init(struct proxy_table *tbl);
-extern void tbl_close(struct proxy_table *tbl);
-extern struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id);
+int tbl_init(struct proxy_table *tbl);
+void tbl_close(struct proxy_table *tbl);
+struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id);
 
 extern int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id);
 
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
 				 * Check if a link with that id already exists.
 				 */
 				lnk = tbl_get(&tbl, id);
-				
+
 				/*
 				 * If the link doesn't yet exist.
 				 */
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 							}
 						}
 					}
-					
+
 					for(i = 0; i < 2; i++) {
 						if(lnk->mask[i] == 0) {
 							lnk->num++;
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 							goto next;
 						}
 					}
-					
+
 					cli_send(sockfd, &from, 0x06, id);
 				}
 			}
@@ -214,7 +214,7 @@ err_close_sockfd:
 	return 0;
 }
 
-extern int tbl_init(struct proxy_table *tbl)
+int tbl_init(struct proxy_table *tbl)
 {
 	int i;
 
@@ -224,7 +224,8 @@ extern int tbl_init(struct proxy_table *tbl)
 	return 0;
 }
 
-extern void tbl_close(struct proxy_table *tbl)
+
+void tbl_close(struct proxy_table *tbl)
 {
 	int i;
 
@@ -235,7 +236,8 @@ extern void tbl_close(struct proxy_table *tbl)
 	}
 }
 
-extern struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id)
+
+struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id)
 {
 	struct proxy_link *ptr;
 
@@ -253,7 +255,7 @@ extern struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id)
 }
 
 
-extern int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id)
+int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id)
 {
 	char buf[4];
 	struct sockaddr *dst = (struct sockaddr *)addr;
