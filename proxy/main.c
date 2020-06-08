@@ -24,13 +24,15 @@ struct proxy_table {
 	struct proxy_link *links[SLOT_NUM];
 };
 
+/*
+ * FUNCTION-PROTOTYPES
+ */
 int tbl_init(struct proxy_table *tbl);
 void tbl_close(struct proxy_table *tbl);
 struct proxy_link *tbl_get(struct proxy_table *tbl, uint16_t id);
+int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id);
 
-extern int cli_send(int fd, struct sockaddr_in6 *addr, uint8_t op, uint16_t id);
-
-int main(int argc, char **argv)
+int main(void)
 {
 	int sockfd;
 	struct sockaddr_in6 addr;
@@ -44,7 +46,6 @@ int main(int argc, char **argv)
 	char buf[512];
 
 	int i, idx;
-	uint8_t op;
 	uint16_t id;
 	struct proxy_link *ptr;
 	struct proxy_link *lnk;
@@ -83,15 +84,14 @@ int main(int argc, char **argv)
 			if((unsigned char)buf[0] != 0xff)
 				continue;
 
-			op = buf[1];
 			memcpy(&id, buf + 2, 2);
 
-			printf("Received %d bytes, OP: %d, Id: %d\n", r, op, id);
+			printf("Received %d bytes, Id: %d\n", r, id);
 
 			/*
 			 * Join a link, or create a new one if necessary.
 			 */
-			if(op == 0x01) {
+			if(buf[1] == 0x01) {
 				/*
 				 * Check if a link with that id already exists.
 				 */

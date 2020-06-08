@@ -107,7 +107,7 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
-						buf[19] = ctx->flg;
+						buf[19] = (ctx->flg & 1);
 
 						printf("Register on server\n");
 						lcp_send(ctx, &evt.addr, buf, 20);

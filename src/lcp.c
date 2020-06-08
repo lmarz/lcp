@@ -73,9 +73,17 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	/* Copy the external IPv6-address and port */
 	ctx->ext_addr = res.sin6_addr;
 
-	if(ntohs(res.sin6_port) == port) {
+	/* Check if port-preservation is enabled */
+	if(ntohs(res.sin6_port) == port)
 		ctx->flg = ctx->flg | LCP_NET_F_PPR;
-	}
+
+	/* Check if uPnP is enabled */
+	if(lcp_upnp_prep(&ctx->upnp) == 0)
+		ctx->flg = ctx->flg | LCP_NET_F_UPNP;
+
+	/* Check if direct connection are possible */
+	if(ctx->flg > 0)
+		ctx->flg = ctx->flg | LCP_CON_F_DIRECT;
 
 	close(sockfd);
 	return 0;
@@ -113,6 +121,7 @@ LCP_INTERN int lcp_get_intern(struct lcp_ctx *ctx)
 	freeifaddrs(addrs);
 	return ret;
 }
+
 
 LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw, 
 		struct sockaddr_in6 *disco, struct sockaddr_in6 *proxy)
@@ -247,7 +256,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
 		return NULL;
 
-	/* Set the status of the connection */
+	/* Require connection send JOI */
 	con->status = 0x01;
 
 	printf("Flags %02x\n", flg);
@@ -255,6 +264,8 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	/* If a direct connection should be extablished, skip proxy */
 	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
 		printf("Use direct\n");
+
+		/* Require connection to send INI */
 		con->status = 0x04;
 	}
 
@@ -273,6 +284,7 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 	if(!(ptr = lcp_con_sel_addr(ctx, addr)))
 		return -1;
 
+	/* Require connection to send FIN */
 	ptr->status = 0x08;
 	return 0;
 }
@@ -482,7 +494,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	int len;
 	short slot;
 	time_t ti;
-	int i;
 	struct sockaddr_in6 cli;
 	uint16_t proxy_id;
 		
@@ -520,7 +531,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			 * connection.
 			 */
 			else if(buf_ptr[1] == 0x04 && ptr->status == 0x02) {
-				/* Update status to initiate conection */
+				/* Require connection send INI */
 				ptr->status = 0x04;
 
 				printf("Link complete\n");
@@ -562,7 +573,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				mpz_import(ptr->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(ptr->pub.e, 1, 1, tmp, 0, 0, e);
 
-				/* Require socket to send ACK */
+				/* Require connection to send ACK */
 				ptr->status = 0x06;
 			}
 			/* Just INI */
@@ -598,7 +609,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				mpz_import(con->pub.n, 128, 1, tmp, 0, 0, n);
 				mpz_import(con->pub.e, 1, 1, tmp, 0, 0, e);
 
-				/* Require socket to send INI-ACK */
+				/* Require connection to send INI-ACK */
 				con->status = 0x05;
 				con->tout = ti + 1;
 				con->count = 0;
@@ -617,7 +628,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr->status >= 0x0a)
 					continue;
 
-				/* Require socket to send ACK */
+				/* Require connection to send ACK */
 				ptr->status = 0x0a;
 			}
 			/* Just FIN */
@@ -629,7 +640,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr == NULL)
 					continue;
 
-				/* Require socket to send FIN-ACK */
+				/* Require connection to send FIN-ACK */
 				ptr->status = 0x09;
 				con->tout = ti + 1;
 				con->count = 0;
@@ -646,6 +657,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				printf("Recv ACK\n");
 #endif
 
+				/* Mark connection as established */
 				ptr->status = 0x07;
 
 				/* Create new event */
