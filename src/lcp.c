@@ -168,6 +168,8 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
 
+		ctx->flg = 0;
+
 		printf("Discover\n");
 
 		/* Discover the internal address */

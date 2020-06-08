@@ -121,7 +121,7 @@ int main(void)
 
 						printf("Connected to peer\n");
 
-						printf("Send message to server: %s\n", buf + 1);
+						printf("Send message to peer: %s\n", buf + 1);
 						lcp_send(ctx, &evt.addr, buf, 14);
 
 					}
