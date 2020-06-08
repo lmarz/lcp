@@ -93,6 +93,7 @@ int main(void)
 								memcpy(buf + 20, &proxy_id, 2);
 								lcp_send(ctx, &peers[i].real, buf, 22);
 							}
+							peer_c = 0;
 						}
 					}
 					break;
