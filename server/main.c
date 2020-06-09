@@ -6,7 +6,18 @@
 #include <fcntl.h>
 #include "../inc/lcp.h"
 
-#define PORT 25252
+#define PORT 4242
+
+#define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BINARY(byte)  \
+	(byte & 0x80 ? '1' : '0'), \
+	(byte & 0x40 ? '1' : '0'), \
+	(byte & 0x20 ? '1' : '0'), \
+	(byte & 0x10 ? '1' : '0'), \
+	(byte & 0x08 ? '1' : '0'), \
+	(byte & 0x04 ? '1' : '0'), \
+	(byte & 0x02 ? '1' : '0'), \
+	(byte & 0x01 ? '1' : '0') 
 
 struct peer {
 	struct sockaddr_in6 real;
@@ -38,10 +49,13 @@ int main(void)
 	/*
 	 * Initialize the LCP-framework.
 	 */
-	if(!(ctx = lcp_init(PORT, 0, LCP_NET_F_OPEN, NULL, NULL))) {
+	if(!(ctx = lcp_init(PORT, 1, LCP_NET_F_OPEN, NULL, NULL))) {
 		printf("Failed to initialize lcp-context\n");
 		return -1;
 	}
+
+	printf("Base port: %d\n", PORT);
+	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->flg));
 
 	while(running) {
 		lcp_update(ctx);
