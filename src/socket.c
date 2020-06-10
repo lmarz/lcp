@@ -193,7 +193,7 @@ LCP_API int lcp_sock_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
 						(struct sockaddr *)addr, 
 						&size);
 
-				if(r > 1) {
+				if(r >= 1) {
 					*len = r;
 					*slot = i;
 					return 1;

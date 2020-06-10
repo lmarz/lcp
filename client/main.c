@@ -49,7 +49,8 @@ int main(void)
 
 	/*
 	 * Setup server-addresses for the different servers.
-	 */	
+	 */
+#if 0
 	memset(&main, 0, addr_sz);
 	main.sin6_family = AF_INET6;
 	main.sin6_port = htons(25252);
@@ -64,6 +65,22 @@ int main(void)
 	proxy.sin6_family = AF_INET6;
 	proxy.sin6_port = htons(4244);
 	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &proxy.sin6_addr);
+#else
+	memset(&main, 0, addr_sz);
+	main.sin6_family = AF_INET6;
+	main.sin6_port = htons(4242);
+	inet_pton(AF_INET6, "::1", &main.sin6_addr);
+
+	memset(&disco, 0, addr_sz);
+	disco.sin6_family = AF_INET6;
+	disco.sin6_port = htons(4243);
+	inet_pton(AF_INET6, "::1", &disco.sin6_addr);
+
+	memset(&proxy, 0, addr_sz);
+	proxy.sin6_family = AF_INET6;
+	proxy.sin6_port = htons(4244);
+	inet_pton(AF_INET6, "::1", &proxy.sin6_addr);
+#endif
 
 	/*
 	 * Initialize the LCP-framework.

@@ -209,6 +209,9 @@ LCP_API void lcp_con_print(struct lcp_ctx *ctx);
 LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id);
 
 
+LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele);
+
+
 /*
  * 
  */
