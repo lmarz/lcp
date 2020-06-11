@@ -164,7 +164,9 @@ int main(void)
 			/*
 			 * Leave a link and delete if empty.
 			 */
-			else if(buf[1] == 0x02 && !(lnk = tbl_get(&tbl, id))) {
+			else if(buf[1] == 0x02) {
+				lnk = tbl_get(&tbl, id);
+
 				printf("Leave\n");
 
 				for(i = 0; i < 2; i++) {
@@ -175,6 +177,11 @@ int main(void)
 					}
 				}
 				cli_send(sockfd, &from, 0x05, id);
+
+				printf("num: %d\n", lnk->num);
+				if(lnk->num == 0) {
+					printf("Link is empty\n");
+				}
 				goto next;
 			}
 			/* 

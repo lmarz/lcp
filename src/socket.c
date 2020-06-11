@@ -58,13 +58,9 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 			goto err_close_socks;
 
 		/* Forward ports on the NAT using uPnP entry if possible */
-		if((flg & LCP_NET_F_UPNP) != 0) {
-			printf("Init uPnP\n");
-
+		if((flg & LCP_NET_F_UPNP) != 0 ) {
 			if(lcp_upnp_add(hdl, port, port) != 0)
 				goto err_close_socks;
-
-			printf("Done\n");
 		}
 
 		tbl->pfds[i].fd = sockfd;

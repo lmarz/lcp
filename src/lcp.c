@@ -9,7 +9,6 @@
 
 #define ADDR6_SIZE sizeof(struct sockaddr_in6)
 
-
 /* Initialize the server-addresses for the DISCO- and PROXY-server */
 LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 {
@@ -159,13 +158,9 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(proxy != NULL)
 			ctx->proxy_addr = *proxy;
 
-		printf("BB\n");
-
 		/* Discover the external address and test port preservation */
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
-
-	printf("CC\n");
 
 		/* Discover the internal address */
 		if(lcp_get_intern(ctx) < 0)
@@ -173,13 +168,9 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 
 	}
 
-	printf("AA\n");
-
 	/* Initialize the socket-table */
 	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
 		goto err_free_ctx;
-
-	printf("Etto\n");
 
 	/* Initialize key-buffers */
 	lcp_init_pvt(&ctx->pvt);
@@ -241,24 +232,20 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	struct lcp_con *con;
 
 	if(port >= 0) {
-		printf("Select port\n");
 		if((slot = lcp_sock_sel_port(tbl, port)) < 0)
 			return NULL;
 
-		printf("Check mask\n");
 		if(tbl->mask[slot] == 0)
 			return NULL;
 
-		printf("Check network\n");
-		if(lcp_bit(ctx->flg, LCP_NET_F_UPNP) && tbl->con_c[slot] > 0)
+		if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
+				tbl->con_c[slot] > 0)
 			return NULL;
 	}
 	else {
 		if((tmp = lcp_sock_get_open(tbl, &slot, 1)) < 1)
 			return NULL;
 	}
-
-	printf("Add new connection\n");
 
 	/* Add a new connection to the connection-table */
 	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
@@ -269,7 +256,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 
 	/* If a direct connection should be extablished, skip proxy */
 	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
-		/* Require connection to send INI */
+		/* Require connection to send JOI */
 		con->status = 0x04;
 	}
 
@@ -351,8 +338,9 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	memcpy(pck_buf, &hdr, hdr_sz);
 	memcpy(pck_buf + hdr_sz, cont_buf, cont_len);
 
-	if((con->flg & LCP_F_ENC) == LCP_F_ENC)
+	if((con->flg & LCP_F_ENC) == LCP_F_ENC) {
 		free(cont_buf);
+	}
 
 	/* Add packet to the packet-queue */
 	if(lcp_que_add(con, pck_buf, pck_len, id) < 0)
@@ -364,14 +352,6 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 err_free_pck_buf:
 	free(pck_buf);
 	return -1;
-}
-
-
-LCP_API int lcp_hint(struct lcp_ctx *ctx, struct sockaddr_in6 *addr, 
-		uint16_t flg)
-{
-	if(ctx || addr || flg) {}
-	return 1;
 }
 
 
@@ -401,8 +381,6 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	time_t ti;
 
 	time(&ti);
-
-	printf("New connection using: %02x\n", flg);
 
 	if(!(con = malloc(sizeof(struct lcp_con))))
 		return NULL;
@@ -545,6 +523,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			if(buf_ptr[1] == 0x05 && ptr->status == 0x01) {
 				/* Await other link to initate connection */
 				ptr->status = 0x02;
+
+				printf("Wait other link to join link\n");
 				continue;
 			}
 			/* 
@@ -554,6 +534,22 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			else if(buf_ptr[1] == 0x04 && ptr->status == 0x02) {
 				/* Require connection send INI */
 				ptr->status = 0x04;
+
+				printf("Link complete\n");
+				continue;
+			}
+			/*
+			 * Disconnected from proxy-link.
+			 */
+			else if(buf_ptr[1] == 0x05 && ptr->status == 0x0c) {
+				/* Create a new event */
+				lcp_push_evt(ctx, LCP_DISCONNECTED, ptr->slot,
+						&ptr->addr, NULL, 0);
+
+				/* Remove the entry from the connection-list */
+				lcp_con_remv(ctx, &ptr->addr);
+
+				printf("Disconnected from proxy link\n");
 				continue;
 			}
 
@@ -561,6 +557,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			buf_ptr += 4;
 		}
 		else {
+			/* Get a pointer to the connection-struct */
 			ptr = lcp_con_sel_addr(ctx, &cli);
 		}
 
@@ -575,12 +572,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				char e[1];
 				int tmp = sizeof(char);
 
-				if(ptr == NULL)
-					continue;
-
 #if LCP_DEBUG
 				printf("Recv INI-ACK\n");
 #endif
+
+				if(ptr == NULL)
+					continue;
 
 				if(ptr->status >= 0x06)
 					continue;
@@ -670,15 +667,15 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		if((hdr.cb & LCP_C_ACK) == LCP_C_ACK) {
 			struct lcp_pck_que *pck;
 
+#if LCP_DEBUG
+			printf("Recv ACK\n");
+#endif
+
 			if(ptr == NULL)
 				continue;
 
 			/* Acknowledge new connection */
 			if(ptr->status == 0x05) {
-#if LCP_DEBUG
-				printf("Recv ACK\n");
-#endif
-
 				/* Mark connection as established */
 				ptr->status = 0x07;
 
@@ -691,9 +688,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 			/* Acknowledge closing a connection */
 			if(ptr->status == 0x09) {
-#if LCP_DEBUG
-				printf("Recv ACK\n");
-#endif
+				if((ptr->flg & 1) == 0) {
+					printf("Disconnect from server\n");
+					ptr->status = 0x0c;
+					ptr->tout = ti;
+					continue;
+				}
 
 				/* Create a new event */
 				lcp_push_evt(ctx, LCP_DISCONNECTED, ptr->slot,
@@ -705,17 +705,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
-
-			memcpy(&hdr, buf_ptr, sizeof(struct lcp_hdr));
 			if(!(pck = lcp_que_sel(ptr, hdr.id))) {
 				/* No packet with that ID has been sent */
 				continue;
 			}
 
-			/* As the packet has been received, 
-			 * remove from packet-list. */
 			lcp_que_remv(ptr, pck);
-			continue;
 		}
 		/* PSH */
 		if((hdr.cb & LCP_C_PSH) == LCP_C_PSH) {
@@ -742,8 +737,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			lcp_push_evt(ctx, LCP_RECEIVED, ptr->slot, &ptr->addr, 
 					cont_buf, cont_len);	
 
-			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC)
+			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
 				free(cont_buf);
+			}
 
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
@@ -785,16 +781,21 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				/* Failed to initialize connection */
+				printf("Failed to connect to proxy\n");
+
+				/* Failed to initialize connection*/
 				goto next;
 			}
 
-			buf[0] = 0xff;
+			buf[0] = (char)0xff;
 			buf[1] = 0x01;
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
-			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0)
+			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0) {
+				printf("Failed to send JOI packet\n");
+
 				goto next;
+			}
 
 #ifdef LCP_DEBUG
 			printf("Send JOI\n");
@@ -808,12 +809,14 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				/* Failed to initialize connection */
+				printf("Connection timed out\n");
+
+				/* Failed to initialize connection*/
 				goto next;
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI;
+			hdr.cb = LCP_C_INI;	  /* Send INI-packet  */
 			hdr.flg = ptr->flg;
 			memcpy(buf, &hdr, sizeof(struct lcp_hdr));
 
@@ -822,7 +825,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
+				printf("Failed to send initial packet\n");
 				/* Failed to send initial-packet */
+
 				goto next;
 			}
 
@@ -842,7 +847,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI | LCP_C_ACK;
+			hdr.cb = LCP_C_INI | LCP_C_ACK;	  /* Send INI-packet  */
 			hdr.flg = ptr->flg;
 			memcpy(buf, &hdr, sizeof(struct lcp_hdr));
 
@@ -852,7 +857,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
 				/* Failed to send initial-packet */
-				goto next;
 			}
 
 #if LCP_DEBUG
@@ -869,7 +873,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
-				goto next;
 			}
 
 			/* Mark connection as established */
@@ -901,7 +904,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send closing-request */
-				goto next;
 			}
 
 #if LCP_DEBUG
@@ -927,7 +929,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
-				goto next;
 			}
 
 #if LCP_DEBUG
@@ -944,7 +945,14 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
-				goto next;
+			}
+
+
+			if((ptr->flg & 1) == 0) {
+				printf("Disconnect from server\n");
+				ptr->status = 0x0c;
+				ptr->tout = ti;
+				continue;
 			}
 
 			/* Create new event */
@@ -959,6 +967,33 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 #endif
 			goto next;
 		}
+		/* Send LEA to proxy */
+		if(ptr->status == 0x0c && ti >= ptr->tout) {
+			ptr->tout = ti + 1;
+			ptr->count++;
+
+			if(ptr->count > 3) {
+				printf("Failed to connect to proxy\n");
+
+				/* Failed to initialize connection*/
+				goto next;
+			}
+
+			buf[0] = (char)0xff;
+			buf[1] = 0x02;
+			memcpy(buf + 2, &ptr->proxy_id, 2);
+
+			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0) {
+				printf("Failed to send JOI packet\n");
+
+				goto next;
+			}
+
+#ifdef LCP_DEBUG
+			printf("Send LEA\n");
+#endif
+			goto next;
+		}
 
 		time(&ti);
 
@@ -970,7 +1005,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 				if(pck->count > 3) {
 					/* Failed to send packet */
-					goto next;
 				}
 
 				lcp_con_send(ctx, ptr, pck->buf, pck->len);
@@ -1011,7 +1045,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 		if(!(pck_buf = malloc(pck_len)))
 			return -1;
 
-		pck_buf[0] = 0xff;
+		pck_buf[0] = (char)0xff;
 		pck_buf[1] = 0x03;
 		memcpy(pck_buf + 2, &con->proxy_id, 2);
 
@@ -1096,7 +1130,7 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 
 	time(&ti);
 
-	if(!buf || len <= 0)
+	if(buf == NULL || len <= 0)
 		return -1;
 
 	/* Initialize the element */
@@ -1142,7 +1176,7 @@ LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele)
 	struct lcp_pck_que *prev;
 	struct lcp_pck_que *next;
 
-	if(!con || !ele)
+	if(con == NULL || ele == NULL)
 		return;
 
 	prev = ele->prev;
@@ -1151,10 +1185,12 @@ LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele)
 	if(next != NULL)
 		next->prev = prev;
 
-	if(ele->prev != NULL)
+	if(ele->prev != NULL) {
 		prev->next = ele->next;
-	else
+	}
+	else {
 		con->que = next;
+	}
 
 	free(ele->buf);
 	free(ele);

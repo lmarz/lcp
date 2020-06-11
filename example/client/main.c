@@ -126,6 +126,7 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
+						/* TODO: Replace 0 with trans_flg */
 						buf[19] = trans_flg;
 
 						printf("Register on server\n");

@@ -66,9 +66,7 @@ struct lcp_con_lst {
 struct lcp_ctx {
 	struct in6_addr int_addr;
 	struct in6_addr ext_addr;
-	
-	char flg;
-	uint8_t pck_flg;
+	uint8_t flg;
 
 	struct lcp_sock_tbl sock;
 	struct lcp_upnp_hdl upnp;
@@ -155,8 +153,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 /*
  * 
  */
-LCP_API int lcp_hint(struct lcp_ctx *ctx, struct sockaddr_in6 *addr, 
-		uint16_t flg);
+LCP_API int lcp_hint(struct lcp_ctx *ctx, uint16_t flg);
 
 /*
  * 
@@ -212,6 +209,9 @@ LCP_API void lcp_con_print(struct lcp_ctx *ctx);
 LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id);
 
 
+/*
+ * 
+ */
 LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele);
 
 

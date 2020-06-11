@@ -28,7 +28,4 @@ LCP_API int lcp_btob_4to6(struct in_addr *src, struct in6_addr *dst);
  */
 LCP_API char *lcp_str_addr(int af, struct in6_addr *addr);
 
-
-LCP_API unsigned int lcp_bit(unsigned int in, unsigned int check);
-
 #endif
