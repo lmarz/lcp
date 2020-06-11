@@ -162,8 +162,6 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
 
-		ctx->flg = 0;
-
 		/* Discover the internal address */
 		if(lcp_get_intern(ctx) < 0)
 			goto err_free_ctx;
@@ -203,8 +201,12 @@ LCP_API void lcp_close(struct lcp_ctx *ctx)
 	/* Close all sockets and clear the socket-table */
 	lcp_sock_close(&ctx->sock);
 
-	if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP)
+	printf("Cleanup %02x\n", ctx->flg);
+
+	if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP) {
+		printf("Cleanup upnp!!\n");
 		lcp_upnp_close(&ctx->upnp);
+	}
 
 	/* Free the context-struct */
 	free(ctx);
@@ -1147,17 +1149,22 @@ err_free_pck:
 
 LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele)
 {
+	struct lcp_pck_que *prev;
+	struct lcp_pck_que *next;
+
 	if(con == NULL || ele == NULL)
 		return;
 
-	printf("Remove id: %d\n", ele->id);
+	prev = ele->prev;
+	next = ele->next;
+
+	if(next != NULL)
+		next->prev = prev;
 
 	if(ele->prev != NULL) {
-		struct lcp_pck_que *prev = ele->prev;
 		prev->next = ele->next;
 	}
 	else {
-		struct lcp_pck_que *next = ele->next;
 		con->que = next;
 	}
 
