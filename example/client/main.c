@@ -4,7 +4,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "../inc/lcp.h"
+#include "../../inc/lcp.h"
 
 #define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BINARY(byte)  \

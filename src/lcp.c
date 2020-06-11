@@ -9,6 +9,7 @@
 
 #define ADDR6_SIZE sizeof(struct sockaddr_in6)
 
+
 /* Initialize the server-addresses for the DISCO- and PROXY-server */
 LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 {
@@ -158,9 +159,13 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(proxy != NULL)
 			ctx->proxy_addr = *proxy;
 
+		printf("BB\n");
+
 		/* Discover the external address and test port preservation */
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
+
+	printf("CC\n");
 
 		/* Discover the internal address */
 		if(lcp_get_intern(ctx) < 0)
@@ -168,9 +173,13 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 
 	}
 
+	printf("AA\n");
+
 	/* Initialize the socket-table */
 	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
 		goto err_free_ctx;
+
+	printf("Etto\n");
 
 	/* Initialize key-buffers */
 	lcp_init_pvt(&ctx->pvt);
@@ -201,12 +210,9 @@ LCP_API void lcp_close(struct lcp_ctx *ctx)
 	/* Close all sockets and clear the socket-table */
 	lcp_sock_close(&ctx->sock);
 
-	printf("Cleanup %02x\n", ctx->flg);
-
-	if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP) {
-		printf("Cleanup upnp!!\n");
+	/* Cleanup uPnP if necessary */
+	if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP)
 		lcp_upnp_close(&ctx->upnp);
-	}
 
 	/* Free the context-struct */
 	free(ctx);
@@ -244,8 +250,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 			return NULL;
 
 		printf("Check network\n");
-		if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
-				tbl->con_c[slot] > 0)
+		if(lcp_bit(ctx->flg, LCP_NET_F_UPNP) && tbl->con_c[slot] > 0)
 			return NULL;
 	}
 	else {
@@ -262,12 +267,8 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	/* Require connection send JOI */
 	con->status = 0x01;
 
-	printf("Flags %02x\n", flg);
-
 	/* If a direct connection should be extablished, skip proxy */
 	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
-		printf("Use direct\n");
-
 		/* Require connection to send INI */
 		con->status = 0x04;
 	}
@@ -350,9 +351,8 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	memcpy(pck_buf, &hdr, hdr_sz);
 	memcpy(pck_buf + hdr_sz, cont_buf, cont_len);
 
-	if((con->flg & LCP_F_ENC) == LCP_F_ENC) {
+	if((con->flg & LCP_F_ENC) == LCP_F_ENC)
 		free(cont_buf);
-	}
 
 	/* Add packet to the packet-queue */
 	if(lcp_que_add(con, pck_buf, pck_len, id) < 0)
@@ -364,6 +364,14 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 err_free_pck_buf:
 	free(pck_buf);
 	return -1;
+}
+
+
+LCP_API int lcp_hint(struct lcp_ctx *ctx, struct sockaddr_in6 *addr, 
+		uint16_t flg)
+{
+	if(ctx || addr || flg) {}
+	return 1;
 }
 
 
@@ -424,21 +432,16 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 			ctx->sock.dst[slot] = *dst;
 
 		ctx->sock.tout[slot] = ti;
-		printf("Modified socket mask\n");
 	}
 
 	/* Increment the number of connections using socket */
 	ctx->sock.con_c[slot]++;
 
 	if(tbl->tbl == NULL) {
-		printf("Set root\n");
-
 		tbl->tbl = con;
 		tbl->num = 1;
 	}
 	else {
-		printf("Append\n");
-
 		ptr = tbl->tbl;
 		while(ptr->next != NULL)
 			ptr = ptr->next;
@@ -542,8 +545,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			if(buf_ptr[1] == 0x05 && ptr->status == 0x01) {
 				/* Await other link to initate connection */
 				ptr->status = 0x02;
-
-				printf("Wait other link to join link\n");
 				continue;
 			}
 			/* 
@@ -553,8 +554,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			else if(buf_ptr[1] == 0x04 && ptr->status == 0x02) {
 				/* Require connection send INI */
 				ptr->status = 0x04;
-
-				printf("Link complete\n");
 				continue;
 			}
 
@@ -713,7 +712,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
+			/* As the packet has been received, 
+			 * remove from packet-list. */
 			lcp_que_remv(ptr, pck);
+			continue;
 		}
 		/* PSH */
 		if((hdr.cb & LCP_C_PSH) == LCP_C_PSH) {
@@ -740,9 +742,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			lcp_push_evt(ctx, LCP_RECEIVED, ptr->slot, &ptr->addr, 
 					cont_buf, cont_len);	
 
-			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
+			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC)
 				free(cont_buf);
-			}
 
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
@@ -784,9 +785,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				printf("Failed to connect to proxy\n");
-
-				/* Failed to initialize connection*/
+				/* Failed to initialize connection */
 				goto next;
 			}
 
@@ -794,11 +793,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			buf[1] = 0x01;
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
-			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0) {
-				printf("Failed to send JOI packet\n");
-
+			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0)
 				goto next;
-			}
 
 #ifdef LCP_DEBUG
 			printf("Send JOI\n");
@@ -812,14 +808,12 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				printf("Connection timed out\n");
-
-				/* Failed to initialize connection*/
+				/* Failed to initialize connection */
 				goto next;
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI;	  /* Send INI-packet  */
+			hdr.cb = LCP_C_INI;
 			hdr.flg = ptr->flg;
 			memcpy(buf, &hdr, sizeof(struct lcp_hdr));
 
@@ -828,9 +822,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
-				printf("Failed to send initial packet\n");
 				/* Failed to send initial-packet */
-
 				goto next;
 			}
 
@@ -850,7 +842,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI | LCP_C_ACK;	  /* Send INI-packet  */
+			hdr.cb = LCP_C_INI | LCP_C_ACK;
 			hdr.flg = ptr->flg;
 			memcpy(buf, &hdr, sizeof(struct lcp_hdr));
 
@@ -860,6 +852,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
 				/* Failed to send initial-packet */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -876,6 +869,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
+				goto next;
 			}
 
 			/* Mark connection as established */
@@ -907,6 +901,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send closing-request */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -932,6 +927,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -948,6 +944,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
+				goto next;
 			}
 
 			/* Create new event */
@@ -968,15 +965,14 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		pck = ptr->que;
 		while(pck != NULL) {
 			if(ti >= pck->tout) {
-				printf("Send packet id: %d\n", pck->id);
 				pck->tout = ti + 1;
 				pck->count++;
 
 				if(pck->count > 3) {
 					/* Failed to send packet */
+					goto next;
 				}
 
-				printf("Send packet!!!!\n");
 				lcp_con_send(ctx, ptr, pck->buf, pck->len);
 			}
 
@@ -1026,9 +1022,8 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 
 	ret = lcp_sock_send(&ctx->sock, con->slot, addr, pck_buf, pck_len);
 
-	if((con->flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT) {
+	if((con->flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
 		free(pck_buf);
-	}
 
 	return ret;
 }
@@ -1101,7 +1096,7 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 
 	time(&ti);
 
-	if(buf == NULL || len <= 0)
+	if(!buf || len <= 0)
 		return -1;
 
 	/* Initialize the element */
@@ -1114,8 +1109,6 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 	pck->count = 0;
 	pck->tout = 0;
 
-	printf("Add id: %d\n", id);
-
 	/* Copy buffer */
 	if(!(pck->buf = malloc(len)))
 		goto err_free_pck;
@@ -1125,7 +1118,6 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 
 	if(con->que == NULL) {
 		con->que = pck;
-		printf("To root\n");
 	}
 	else {
 		struct lcp_pck_que *ptr;
@@ -1136,8 +1128,6 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 
 		pck->prev = ptr;
 		ptr->next = pck;
-
-		printf("To end\n");
 	}
 	return 0;
 
@@ -1152,7 +1142,7 @@ LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele)
 	struct lcp_pck_que *prev;
 	struct lcp_pck_que *next;
 
-	if(con == NULL || ele == NULL)
+	if(!con || !ele)
 		return;
 
 	prev = ele->prev;
@@ -1161,12 +1151,10 @@ LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele)
 	if(next != NULL)
 		next->prev = prev;
 
-	if(ele->prev != NULL) {
+	if(ele->prev != NULL)
 		prev->next = ele->next;
-	}
-	else {
+	else
 		con->que = next;
-	}
 
 	free(ele->buf);
 	free(ele);

@@ -20,3 +20,12 @@ LCP_API char *lcp_str_addr(int af, struct in6_addr *addr)
 		return "failed";
 	return buf;
 }
+
+
+LCP_API unsigned int lcp_bit(unsigned int in, unsigned int check)
+{
+	if((in & check) == check)
+		return 1;
+
+	return 0;
+}
