@@ -134,8 +134,12 @@ int main(void)
 					}
 					
 					else if(memcmp(&peer, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
-						char buf[14] = "0Hello World\0";
+						char buf[14];
+						int tmp;
 						buf[0] = 0x45;
+						for(tmp = 1; tmp < 13; tmp++)
+							buf[tmp] = rand() % 26 + 65;
+						buf[13] = 0;
 
 						printf("Connected to peer\n");
 
@@ -162,7 +166,7 @@ int main(void)
 					}
 					break;
 
-				case(0x03):
+				case 0x03:
 					if(evt.buf[0] == 0x44) {
 						memset(&peer, 0, addr_sz);
 						peer.sin6_family = AF_INET6;
@@ -183,6 +187,8 @@ int main(void)
 					else if(evt.buf[0] == 0x45) {
 						evt.buf[0] = 0x46;
 
+						printf("Received buffer: %s\n", evt.buf + 1);
+
 						/* Respond to server */
 						lcp_send(ctx, &evt.addr, evt.buf, 14);
 					}
@@ -192,6 +198,10 @@ int main(void)
 						printf("Disconnect from peer\n");
 						lcp_disconnect(ctx, &evt.addr);
 					}
+					break;
+
+				case 0x04:
+					printf("New hint!!!!\n");
 					break;
 			}
 

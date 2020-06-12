@@ -11,6 +11,8 @@
 #define LCP_DISCONNECTED   0x02
 #define LCP_RECEIVED       0x03
 #define LCP_TIMEDOUT       0x04
+#define LCP_HINT           0x05
+
 /*
  * 
  */

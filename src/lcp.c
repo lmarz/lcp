@@ -275,8 +275,12 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 	if(!(ptr = lcp_con_sel_addr(ctx, addr)))
 		return -1;
 
+	printf("Update status\n");
+
 	/* Require connection to send FIN */
 	ptr->status = 0x08;
+	ptr->tout = 0;
+	ptr->count = 0;
 	return 0;
 }
 
@@ -369,6 +373,18 @@ LCP_API void lcp_con_close(struct lcp_ctx *ctx)
 
 		ptr = next;
 	}
+}
+
+
+LCP_API int lcp_hint(struct lcp_con *con)
+{
+	if(con->status != 0x07)
+		return -1;
+
+	con->status = 0x0d;
+	con->tout = 0;
+	con->count = 0;
+	return 0;
 }
 
 
@@ -481,6 +497,33 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 		prev = ptr;
 		ptr = ptr->next;
 	}
+}
+
+
+LCP_INTERN int lcp_addr_comp(struct lcp_ctx *ctx, short slot, 
+		struct sockaddr_in6 *addr)
+{
+	unsigned long a = 0, b = 0;
+	unsigned short a_port, b_port;
+	char *ap = (char *)&a;
+	char *bp = (char *)&b;
+
+	memset(&a, 0, 8);
+	memset(&b, 0, 8);
+
+	a_port = ctx->sock.ext_port[slot];
+	b_port = ntohs(addr->sin6_port);
+
+	memcpy(ap + 2, &a_port, 2);
+	memcpy(ap + 4, (char *)&ctx->ext_addr + 12, 4);
+
+	memcpy(bp + 2, &b_port, 2);
+	memcpy(bp + 4, (char *)&addr->sin6_addr + 12, 4);
+
+	if(a > b)
+		return 1;
+
+	return 0;
 }
 
 
@@ -606,6 +649,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					if(ptr->status > 0x04)
 						continue;
 
+					if(ptr->status == 0x04 && lcp_addr_comp(
+								ctx, ptr->slot, 
+								&ptr->addr))
+						continue;
+
 					con = ptr;
 				}
 				else {
@@ -615,6 +663,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 					if(con == NULL) {
 						/* TODO: Reset  connection*/
+						continue;
 					}
 				}
 
@@ -656,6 +705,13 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr == NULL)
 					continue;
 
+				if(ptr->status >= 0x09)
+					continue;
+
+				if(ptr->status == 0x08 && lcp_addr_comp(ctx, 
+							ptr->slot, &ptr->addr))
+					continue;
+
 				/* Require connection to send FIN-ACK */
 				ptr->status = 0x09;
 				ptr->tout = ti + 1;
@@ -689,9 +745,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			/* Acknowledge closing a connection */
 			if(ptr->status == 0x09) {
 				if((ptr->flg & 1) == 0) {
-					printf("Disconnect from server\n");
+					printf("Disconnect from proxy\n");
 					ptr->status = 0x0c;
 					ptr->tout = ti;
+					ptr->count = 0;
 					continue;
 				}
 
@@ -705,6 +762,18 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
+			if(ptr->status == 0x0d) {
+				uint8_t hnt_flg = ptr->flg;
+
+				/* Reset status */
+				ptr->status = 0x07;
+
+				/* Create a new event */
+				lcp_push_evt(ctx, LCP_HINT, ptr->slot,
+						&ptr->addr, (char *)&hnt_flg, 1);
+				continue;
+			}
+
 			if(!(pck = lcp_que_sel(ptr, hdr.id))) {
 				/* No packet with that ID has been sent */
 				continue;
@@ -714,11 +783,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		}
 		/* PSH */
 		if((hdr.cb & LCP_C_PSH) == LCP_C_PSH) {
-			int sockfd;
 			int tmp = sizeof(struct lcp_hdr);
 			char *cont_buf;
 			int cont_len;
-			struct sockaddr *addrp = (struct sockaddr *)&ptr->addr;
 
 #if LCP_DEBUG
 			printf("Recv PSH\n");
@@ -743,8 +810,22 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
-			sockfd = ctx->sock.fd[ptr->slot];
-			sendto(sockfd, &hdr, tmp, 0, addrp, ADDR6_SIZE);
+			lcp_con_send(ctx, ptr, (char *)&hdr,
+					sizeof(struct lcp_hdr));
+		}
+		if((hdr.cb & LCP_C_HNT) == LCP_C_HNT) {
+			/* Copy the packet-flags */
+			ptr->flg = (hdr.flg & 0xfe) | (ptr->flg & 1);
+
+			/* Send an acknowledgement for the packet */
+			hdr.cb = LCP_C_ACK;
+			lcp_con_send(ctx, ptr, (char *)&hdr, 
+					sizeof(struct lcp_hdr));	
+
+
+			/* Create a new event */
+			lcp_push_evt(ctx, LCP_HINT, ptr->slot,
+					&ptr->addr, (char *)&ptr->flg, 1);
 		}
 	}
 }
@@ -792,8 +873,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
 			if(lcp_sock_send(&ctx->sock, ptr->slot, &ctx->proxy_addr, buf, 4) < 0) {
-				printf("Failed to send JOI packet\n");
-
 				goto next;
 			}
 
@@ -802,7 +881,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 #endif
 			goto next;
 		}
-
 		/* Send INI */
 		if(ptr->status == 0x04 && ti >= ptr->tout) {
 			ptr->tout = ti + 1;
@@ -825,9 +903,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
-				printf("Failed to send initial packet\n");
 				/* Failed to send initial-packet */
-
 				goto next;
 			}
 
@@ -857,6 +933,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
 				/* Failed to send initial-packet */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -873,6 +950,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
+				goto next;
 			}
 
 			/* Mark connection as established */
@@ -904,6 +982,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send closing-request */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -929,6 +1008,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				/* Failed to send acknowledge-packet */
+				goto next;
 			}
 
 #if LCP_DEBUG
@@ -949,9 +1029,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 
 			if((ptr->flg & 1) == 0) {
-				printf("Disconnect from server\n");
+				printf("Disconnect from proxy\n");
 				ptr->status = 0x0c;
 				ptr->tout = ti;
+				ptr->count = 0;
 				continue;
 			}
 
@@ -972,6 +1053,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->tout = ti + 1;
 			ptr->count++;
 
+			printf("Hello %d\n", ptr->count);
+
 			if(ptr->count > 3) {
 				printf("Failed to connect to proxy\n");
 
@@ -989,11 +1072,33 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				goto next;
 			}
 
-#ifdef LCP_DEBUG
+#if LCP_DEBUG
 			printf("Send LEA\n");
 #endif
 			goto next;
 		}
+		/* Send HNT */
+		if(ptr->status == 0x0d && ti >= ptr->tout) {
+			struct lcp_hdr proto_hdr;
+
+			ptr->tout = ti + 1;
+			ptr->count++;
+
+			if(ptr->count > 3) {
+				printf("Failed to send hint\n");
+
+				goto next;
+			}
+
+			proto_hdr.id = 0;
+			proto_hdr.cb = LCP_C_HNT;
+			proto_hdr.flg = ptr->flg & 0xfe;
+
+			lcp_con_send(ctx, ptr, (char *)&proto_hdr, 
+					sizeof(struct lcp_hdr));
+			goto next;
+		}
+
 
 		time(&ti);
 

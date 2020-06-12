@@ -153,7 +153,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 /*
  * 
  */
-LCP_API int lcp_hint(struct lcp_ctx *ctx, uint16_t flg);
+LCP_API int lcp_hint(struct lcp_con *con);
 
 /*
  * 
