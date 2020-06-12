@@ -50,10 +50,10 @@ int main(void)
 	/*
 	 * Setup server-addresses for the different servers.
 	 */
-#if 0
+#if 1
 	memset(&main, 0, addr_sz);
 	main.sin6_family = AF_INET6;
-	main.sin6_port = htons(25252);
+	main.sin6_port = htons(4242);
 	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2e:bbb1", &main.sin6_addr);
 
 	memset(&disco, 0, addr_sz);
