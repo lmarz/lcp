@@ -615,15 +615,15 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				char e[1];
 				int tmp = sizeof(char);
 
-#if LCP_DEBUG
-				printf("Recv INI-ACK\n");
-#endif
-
 				if(ptr == NULL)
 					continue;
 
 				if(ptr->status >= 0x06)
 					continue;
+
+#if LCP_DEBUG
+				printf("Recv INI-ACK\n");
+#endif
 
 				/* Read public-key */
 				memcpy(n, buf_ptr + 4, 128);
@@ -640,10 +640,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				char n[128];
 				char e[1];
 				int tmp = sizeof(char);
-
-#if LCP_DEBUG
-				printf("Recv INI\n");
-#endif
 
 				if(ptr != NULL) {
 					if(ptr->status > 0x04)
@@ -667,6 +663,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					}
 				}
 
+#if LCP_DEBUG
+				printf("Recv INI\n");
+#endif
+
 				/* Read public-key */
 				memcpy(n, buf_ptr + 4, 128);
 				memcpy(e, buf_ptr + 132, 1);
@@ -686,22 +686,18 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		if((hdr.cb & LCP_C_FIN) == LCP_C_FIN) {
 			/* FIN-ACK */
 			if(hdr.cb & LCP_C_ACK) {
+				if(ptr->status >= 0x0a)
+					continue;
+
 #if LCP_DEBUG
 				printf("Recv FIN-ACK\n");
 #endif
-
-				if(ptr->status >= 0x0a)
-					continue;
 
 				/* Require connection to send ACK */
 				ptr->status = 0x0a;
 			}
 			/* Just FIN */
 			else {
-#if LCP_DEBUG
-				printf("Recv FIN\n");
-#endif
-
 				if(ptr == NULL)
 					continue;
 
@@ -711,6 +707,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr->status == 0x08 && lcp_addr_comp(ctx, 
 							ptr->slot, &ptr->addr))
 					continue;
+
+#if LCP_DEBUG
+				printf("Recv FIN\n");
+#endif
 
 				/* Require connection to send FIN-ACK */
 				ptr->status = 0x09;
@@ -723,12 +723,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		if((hdr.cb & LCP_C_ACK) == LCP_C_ACK) {
 			struct lcp_pck_que *pck;
 
+			if(ptr == NULL)
+				continue;
+
 #if LCP_DEBUG
 			printf("Recv ACK\n");
 #endif
-
-			if(ptr == NULL)
-				continue;
 
 			/* Acknowledge new connection */
 			if(ptr->status == 0x05) {
@@ -1053,8 +1053,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->tout = ti + 1;
 			ptr->count++;
 
-			printf("Hello %d\n", ptr->count);
-
 			if(ptr->count > 3) {
 				printf("Failed to connect to proxy\n");
 
@@ -1133,19 +1131,12 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 	int ret;
 
 	if((con->flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
-#if LCP_DEBUG
-		printf("Dont use proxy\n");
-#endif
 		pck_buf = buf;
 		pck_len = len;
 
 		addr = &con->addr;
 	}
 	else {
-#if LCP_DEBUG
-		printf("Use Proxy\n");
-#endif
-
 		pck_len = len + 4;
 		if(!(pck_buf = malloc(pck_len)))
 			return -1;

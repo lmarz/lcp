@@ -126,7 +126,6 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
-						/* TODO: Replace 0 with trans_flg */
 						buf[19] = trans_flg;
 
 						printf("Register on server\n");
@@ -185,12 +184,11 @@ int main(void)
 						con->proxy_id = proxy_id;
 					}
 					else if(evt.buf[0] == 0x45) {
-						evt.buf[0] = 0x46;
-
 						printf("Received buffer: %s\n", evt.buf + 1);
 
-						/* Respond to server */
-						lcp_send(ctx, &evt.addr, evt.buf, 14);
+						con->flg -= LCP_F_ENC;
+						lcp_hint(con);
+
 					}
 					else if(evt.buf[0] == 0x46) {
 						printf("Received buffer: %s\n", evt.buf + 1);
@@ -200,8 +198,19 @@ int main(void)
 					}
 					break;
 
-				case 0x04:
+				case 0x05:
 					printf("New hint!!!!\n");
+					{
+						char buf[14];
+						int tmp;
+						buf[0] = 0x46;
+						for(tmp = 1; tmp < 13; tmp++)
+							buf[tmp] = rand() % 26 + 65;
+						buf[13] = 0;
+
+						printf("Send message to peer: %s\n", buf + 1);
+						lcp_send(ctx, &evt.addr, buf, 14);
+					}
 					break;
 			}
 
