@@ -255,10 +255,8 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	con->status = 0x01;
 
 	/* If a direct connection should be extablished, skip proxy */
-	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
-		/* Require connection to send JOI */
+	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT)
 		con->status = 0x04;
-	}
 
 	/* Send a single packet to the destination */
 	tmp = 0;
@@ -275,7 +273,8 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 	if(!(ptr = lcp_con_sel_addr(ctx, addr)))
 		return -1;
 
-	printf("Update status\n");
+	if(ptr->status != 0x07)
+		return -1;
 
 	/* Require connection to send FIN */
 	ptr->status = 0x08;
