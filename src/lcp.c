@@ -760,16 +760,19 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				continue;
 			}
-
+			/* Acknowledge hint */
 			if(ptr->status == 0x0d) {
-				uint8_t hnt_flg = ptr->flg;
+				char info[2];
 
 				/* Reset status */
 				ptr->status = 0x07;
 
+				info[0] = ptr->flg;
+				info[1] = 0;
+
 				/* Create a new event */
 				lcp_push_evt(ctx, LCP_HINT, ptr->slot,
-						&ptr->addr, (char *)&hnt_flg, 1);
+						&ptr->addr, info, 2);
 				continue;
 			}
 
@@ -821,7 +824,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			lcp_con_send(ctx, ptr, (char *)&hdr,
 					sizeof(struct lcp_hdr));
 		}
+		/* HNT */
 		if((hdr.cb & LCP_C_HNT) == LCP_C_HNT) {
+			char info[2];
+
 			if(ptr->status != 0x07) {
 				/* Connection not established or closing */
 				continue;
@@ -837,10 +843,12 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			lcp_con_send(ctx, ptr, (char *)&hdr, 
 					sizeof(struct lcp_hdr));	
 
+			info[0] = ptr->flg;
+			info[1] = 1;
 
 			/* Create a new event */
-			lcp_push_evt(ctx, LCP_HINT, ptr->slot,
-					&ptr->addr, (char *)&ptr->flg, 1);
+			lcp_push_evt(ctx, LCP_HINT, ptr->slot, &ptr->addr, 
+					info, 2);
 		}
 	}
 }

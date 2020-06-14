@@ -44,6 +44,7 @@ int main(void)
 
 	struct lcp_evt evt;
 	int i;
+	char hnt_flg = 1;
 
 	srand(time(NULL));
 
@@ -200,6 +201,9 @@ int main(void)
 					break;
 
 				case 0x05:
+					if(evt.buf[1] != 1)
+						continue;
+
 					printf("Recv Hint\n");
 					{
 						char buf[14];
