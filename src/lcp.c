@@ -787,6 +787,9 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			char *cont_buf;
 			int cont_len;
 
+			if(ptr == NULL)
+				continue;
+
 			if(ptr->status != 0x07) {
 				/* Connection not established or closing */
 				continue;
