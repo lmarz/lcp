@@ -158,19 +158,31 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		if(proxy != NULL)
 			ctx->proxy_addr = *proxy;
 
+		printf("Discover\n");
+
 		/* Discover the external address and test port preservation */
 		if(lcp_discover(ctx) < 0)
 			goto err_free_ctx;
+
+		printf("done\n");
+
+		printf("Intern\n");
 
 		/* Discover the internal address */
 		if(lcp_get_intern(ctx) < 0)
 			goto err_free_ctx;
 
+		printf("done\n");
+
 	}
+
+	printf("Sock init\n");
 
 	/* Initialize the socket-table */
 	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
 		goto err_free_ctx;
+
+	printf("done\n");
 
 	/* Initialize key-buffers */
 	lcp_init_pvt(&ctx->pvt);

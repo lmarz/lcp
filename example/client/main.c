@@ -127,7 +127,7 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
-						buf[19] = trans_flg;
+						buf[19] = 0;
 
 						printf("Register on server\n");
 						lcp_send(ctx, &evt.addr, buf, 20);
@@ -202,7 +202,7 @@ int main(void)
 
 				case 0x05:
 					if(evt.buf[1] != 1)
-						continue;
+						break;
 
 					printf("Recv Hint\n");
 					{

@@ -21,6 +21,8 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 	struct sockaddr *addr_ptr = (struct sockaddr *)&addr;
 	int addr_sz = sizeof(addr);
 
+	printf("Setup soicket-table\n");
+
 	base = (base <= 0) ? LCP_SOCK_MIN_PORT : base;
 	num = (num <= 0 || num > LCP_SOCK_NUM) ? LCP_SOCK_NUM : num;
 
@@ -33,8 +35,10 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 	for(i = 0; i < num; i++) {
 		port = base + i;
 
-		if((sockfd = socket(PF_INET6, SOCK_DGRAM, 0)) < 0)
+		if((sockfd = socket(PF_INET6, SOCK_DGRAM, 0)) < 0) {
+			printf("Failed to create socket\n");
 			goto err_close_socks;
+		}
 
 		tbl->mask[i] = LCP_SOCK_M_INIT;
 		tbl->fd[i] = sockfd;
@@ -50,22 +54,30 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 		addr.sin6_addr = in6addr_any;
 
 		/* Bind the socket to the port  */
-		if(bind(sockfd, addr_ptr, addr_sz) < 0)
+		if(bind(sockfd, addr_ptr, addr_sz) < 0) {
+			printf("Failed to bind socket\n");
 			goto err_close_socks;
+		}
 
 		/* Set socket non-blocking */
-		if(fcntl(sockfd, F_SETFL, O_NONBLOCK)  < 0)
+		if(fcntl(sockfd, F_SETFL, O_NONBLOCK)  < 0) {
+			printf("Failed to set non-blocking\n");
 			goto err_close_socks;
+		}
 
 		/* Forward ports on the NAT using uPnP entry if possible */
 		if((flg & LCP_NET_F_UPNP) != 0 ) {
-			if(lcp_upnp_add(hdl, port, port) != 0)
+			if(lcp_upnp_add(hdl, port, port) != 0) {
+				printf("Failed to setup uPnP\n");
 				goto err_close_socks;
+			}
 		}
 
 		tbl->pfds[i].fd = sockfd;
 		tbl->pfds[i].events = POLLIN;
 	}
+
+	printf("Socket tablet finished\n");
 
 	return 0;
 
