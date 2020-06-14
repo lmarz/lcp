@@ -1109,6 +1109,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			lcp_con_send(ctx, ptr, (char *)&proto_hdr, 
 					sizeof(struct lcp_hdr));
+
+#if LCP_DEBUG
+			printf("Send HNT\n");
+#endif
 			goto next;
 		}
 

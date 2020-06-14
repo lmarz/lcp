@@ -186,6 +186,7 @@ int main(void)
 					else if(evt.buf[0] == 0x45) {
 						printf("Received buffer: %s\n", evt.buf + 1);
 
+						printf("Send hint\n");
 						con->flg -= LCP_F_ENC;
 						lcp_hint(con);
 
@@ -199,7 +200,7 @@ int main(void)
 					break;
 
 				case 0x05:
-					printf("New hint!!!!\n");
+					printf("Recv Hint\n");
 					{
 						char buf[14];
 						int tmp;
