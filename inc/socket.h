@@ -29,6 +29,7 @@
 #define LCP_SOCK_M_INIT          0x01
 #define LCP_SOCK_M_KEEPALIVE     0x02
 
+#define ADDR6_SIZE sizeof(struct sockaddr_in6)
 
 struct lcp_sock_tbl {
 	short num;

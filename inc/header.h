@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* Size of the header in bytes */
-#define LCP_HDR_LEN    4
+#define LCP_HDR_SIZE   4
 
 /* Define the control-bits */
 #define LCP_C_INI      0x01
