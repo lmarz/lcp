@@ -778,6 +778,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 			}
 
+			/* Remove package from the package-list */
 			lcp_que_remv(ptr, pck);
 		}
 		/* PSH */
@@ -785,6 +786,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			int tmp = sizeof(struct lcp_hdr);
 			char *cont_buf;
 			int cont_len;
+
+			if(ptr->status != 0x07) {
+				/* Connection not established or closing */
+				continue;
+			}
 
 #if LCP_DEBUG
 			printf("Recv PSH\n");
@@ -813,6 +819,13 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					sizeof(struct lcp_hdr));
 		}
 		if((hdr.cb & LCP_C_HNT) == LCP_C_HNT) {
+			if(ptr->status != 0x07) {
+				/* Connection not established or closing */
+				continue;
+			}
+
+			printf("Recv HNT\n");
+
 			/* Copy the packet-flags */
 			ptr->flg = (hdr.flg & 0xfe) | (ptr->flg & 1);
 
