@@ -10,11 +10,15 @@
 # Unignore Makefile
 !**/Makefile
 
+# Ignore all a.out
+**/a.out
+
 /obj
 /miniupnpc
 
 /test/test
 
+*.swo
 *.swp
 *.vim
 *.a

@@ -225,7 +225,7 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx)
 
 
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port, 
-		struct sockaddr_in6 *dst, char con_flg)
+		struct sockaddr_in6 *dst, char con_flg, uint8_t pck_flg)
 {
 	short slot;
 	int tmp;
@@ -249,7 +249,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	}
 
 	/* Add a new connection to the connection-table */
-	if(!(con = lcp_con_add(ctx, dst, slot, con_flg, LCP_F_ENC)))
+	if(!(con = lcp_con_add(ctx, dst, slot, con_flg, pck_flg)))
 		return NULL;
 
 	/* Require connection send JOI */
@@ -315,9 +315,11 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 
 	/* If encryption should be used */
 	if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
+		printf("Encryption\n");
 		lcp_encrypt(&cont_buf, &cont_len, buf, len, con->pub);
 	}
 	else {
+		printf("No encryption\n");
 		cont_buf = buf;
 		cont_len = len;
 	}
@@ -370,10 +372,21 @@ LCP_API void lcp_con_close(struct lcp_ctx *ctx)
 }
 
 
-LCP_API int lcp_hint(struct lcp_con *con)
+LCP_API int lcp_hint(struct lcp_con *con, uint8_t pck_flg)
 {
 	if(con->status != 0x07)
 		return -1;
+
+	/* Can't enable encryption if keys have not been exchanged */
+	if((pck_flg & LCP_F_ENC) == LCP_F_ENC &&
+			(con->ini_pck_flg & LCP_F_ENC) != LCP_F_ENC)
+		return -1;
+
+	/* If the new flags are the same as the old ones */
+	if(con->pck_flg == pck_flg)
+		return 0;
+
+	con->pck_flg = pck_flg;
 
 	con->status = 0x0d;
 	con->tout = 0;
@@ -402,6 +415,7 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	con->slot = slot; 
 
 	con->con_flg = con_flg;
+	con->ini_pck_flg = pck_flg;
 	con->pck_flg = pck_flg;
 	con->que = NULL;
 
@@ -607,12 +621,17 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				if(ptr == NULL || ptr->status >= 0x06)
 					continue;
 
-				/* Read public-key */
-				memcpy(n, buf_ptr + 4, 128);
-				memcpy(e, buf_ptr + 132, 1);
+				/* If encryption enabled from the start */
+				if((ptr->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
+					/* Read public-key */
+					memcpy(n, buf_ptr + 4, 128);
+					memcpy(e, buf_ptr + 132, 1);
 
-				mpz_import(ptr->pub.n, 128, 1, tmp, 0, 0, n);
-				mpz_import(ptr->pub.e, 1, 1, tmp, 0, 0, e);
+					mpz_import(ptr->pub.n, 128, 1, tmp, 0, 
+							0, n);
+					mpz_import(ptr->pub.e, 1, 1, tmp, 0, 
+							0, e);
+				}
 
 				/* Require connection to send ACK */
 				ptr->status = 0x06;
@@ -645,12 +664,17 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 						continue;
 				}
 
-				/* Read public-key */
-				memcpy(n, buf_ptr + 4, 128);
-				memcpy(e, buf_ptr + 132, 1);
+				/* If encryption enabled from the start */
+				if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
+					/* Read public-key */
+					memcpy(n, buf_ptr + 4, 128);
+					memcpy(e, buf_ptr + 132, 1);
 
-				mpz_import(con->pub.n, 128, 1, tmp, 0, 0, n);
-				mpz_import(con->pub.e, 1, 1, tmp, 0, 0, e);
+					mpz_import(con->pub.n, 128, 1, tmp, 0,
+							0, n);
+					mpz_import(con->pub.e, 1, 1, tmp, 0,
+							0, e);
+				}
 
 				/* Require connection to send INI-ACK */
 				con->status = 0x05;

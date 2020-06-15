@@ -82,7 +82,7 @@ int main(void)
 	lcp_sock_print(&ctx->sock);
 
 	/* Connect to the server */
-	if(lcp_connect(ctx, -1, &main, LCP_CON_F_DIRECT) < 0)
+	if(lcp_connect(ctx, -1, &main, LCP_CON_F_DIRECT, LCP_F_ENC) < 0)
 		goto err_close_lcp;
 
 	lcp_con_print(ctx);
@@ -163,15 +163,15 @@ int main(void)
 
 						printf("Flags: "BINARY_PATTERN"\n", BINARY(flg));
 
-						con = lcp_connect(ctx, ntohs(open_port), &peer, flg);
+						con = lcp_connect(ctx, ntohs(open_port),
+								&peer, flg, 0);
 						con->proxy_id = proxy_id;
 					}
 					else if(evt.buf[0] == 0x45) {
 						printf("Received buffer: %s\n", evt.buf + 1);
 
 						printf("Send hint\n");
-						con->pck_flg = 0;
-						lcp_hint(con);
+						lcp_hint(con, LCP_F_ENC);
 
 					}
 					else if(evt.buf[0] == 0x46) {

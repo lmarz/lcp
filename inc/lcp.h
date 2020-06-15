@@ -40,7 +40,9 @@ struct lcp_con {
 	short slot;
 
 	char con_flg;
-	char pck_flg;
+	
+	uint8_t ini_pck_flg;
+	uint8_t pck_flg;
 	struct lcp_pck_que *que;
 
 	char status;
@@ -133,7 +135,7 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx);
  * Returns: A pointer to the new connection-struct or NULL if an error occurred
  */
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short slot, 
-		struct sockaddr_in6 *dst, char con_flg);
+		struct sockaddr_in6 *dst, char con_flg, uint8_t pck_flg);
 
 
 /*
@@ -176,11 +178,16 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 
 
 /*
- * Synchronize the connection-flags with the other side.
+ * Synchronize the connection-flags with the other side. Note that if the
+ * connection has not been initialized with encryption enabled, you can't
+ * enable encryption, but have to create a new connection.
  *
  * @con: Pointer to the connection
+ * @pck_flg: The new packet-flags for the connection
+ *
+ * Returns: 0 on success or -1 if an error occurred
  */
-LCP_API int lcp_hint(struct lcp_con *con);
+LCP_API int lcp_hint(struct lcp_con *con, uint8_t pck_flg);
 
 /*
  * Close all connection attached to a context and clear the connection-table.
