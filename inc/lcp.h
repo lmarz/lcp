@@ -39,7 +39,8 @@ struct lcp_con {
 	struct sockaddr_in6 addr;
 	short slot;
 
-	uint8_t flg;
+	char con_flg;
+	char pck_flg;
 	struct lcp_pck_que *que;
 
 	char status;
@@ -67,7 +68,8 @@ struct lcp_con_lst {
 struct lcp_ctx {
 	struct in6_addr int_addr;
 	struct in6_addr ext_addr;
-	uint8_t flg;
+	uint8_t net_flg;
+	char con_flg;
 
 	struct lcp_sock_tbl sock;
 	struct lcp_upnp_hdl upnp;
@@ -125,12 +127,13 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx);
  * @ctx: Pointer to the context
  * @port: The port to open the connection on
  * @dst: The IPv6-address to connect to
- * @flg: Optional flags for the connection(use 0 if empty)
+ * @con_flg: Flags indicating the type of connection, ie direct or proxy
+ * @pck_flg: Flags for the packets, ie encryption
  *
  * Returns: A pointer to the new connection-struct or NULL if an error occurred
  */
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short slot, 
-		struct sockaddr_in6 *dst, uint8_t flg);
+		struct sockaddr_in6 *dst, char con_flg);
 
 
 /*
@@ -193,12 +196,14 @@ LCP_API void lcp_con_close(struct lcp_ctx *ctx);
  * @ctx: Pointer to the context
  * @dst: The IPv6-address of the connection
  * @slot: The socket-slot to open the connection with
- * @flg: The connection-flags
+ * @con_flg: Flags indicating the type of connection, ie direct or proxy
+ * @pck_flg: Flags for the package, ie encryption
  *
  * Returns: Pointer to the connection or NULL if an error occurred
  */
 LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
-		struct sockaddr_in6 *dst, short slot, uint8_t flg);
+		struct sockaddr_in6 *dst, short slot, 
+		char con_flg, uint8_t pck_flg);
 
 
 /*

@@ -73,15 +73,18 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 
 	/* Check if port-preservation is enabled */
 	if(ntohs(res.sin6_port) == port)
-		ctx->flg = ctx->flg | LCP_NET_F_PPR;
+		ctx->net_flg = ctx->net_flg | LCP_NET_F_PPR;
 
 	/* Check if uPnP is enabled */
 	if(lcp_upnp_prep(&ctx->upnp) == 0)
-		ctx->flg = ctx->flg | LCP_NET_F_UPNP;
+		ctx->net_flg = ctx->net_flg | LCP_NET_F_UPNP;
+
+	/* Use proxy by default */
+	ctx->con_flg = LCP_CON_F_PROXY;
 
 	/* Check if direct connection are possible */
-	if(ctx->flg > 0)
-		ctx->flg = ctx->flg | LCP_CON_F_DIRECT;
+	if(ctx->net_flg > 0)
+		ctx->con_flg = LCP_CON_F_DIRECT;
 
 	close(sockfd);
 	return 0;
@@ -131,7 +134,8 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 
 	if(ovw) {
 		/* Set initial values of variables of the context */
-		ctx->flg = ovw;
+		ctx->net_flg = ovw;
+		ctx->con_flg = 0;
 		ctx->evt = NULL;
 
 		/* Set the initial values of the connection-list */
@@ -140,7 +144,7 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 	}
 	else {
 		/* Set initial values of variables of the context */
-		ctx->flg = 0;
+		ctx->net_flg = 0;
 		ctx->evt = NULL;
 
 		/* Set the initial values of the connection-list */
@@ -166,7 +170,7 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 	}
 
 	/* Initialize the socket-table */
-	if(lcp_sock_init(&ctx->sock, ctx->flg, &ctx->upnp, base, num) < 0)
+	if(lcp_sock_init(&ctx->sock, ctx->net_flg, &ctx->upnp, base, num) < 0)
 		goto err_free_ctx;
 
 	/* Initialize key-buffers */
@@ -199,7 +203,7 @@ LCP_API void lcp_close(struct lcp_ctx *ctx)
 	lcp_sock_close(&ctx->sock);
 
 	/* Cleanup uPnP if necessary */
-	if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP)
+	if((ctx->net_flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP)
 		lcp_upnp_close(&ctx->upnp);
 
 	/* Free the context-struct */
@@ -221,7 +225,7 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx)
 
 
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port, 
-		struct sockaddr_in6 *dst, uint8_t flg)
+		struct sockaddr_in6 *dst, char con_flg)
 {
 	short slot;
 	int tmp;
@@ -235,7 +239,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 		if(tbl->mask[slot] == 0)
 			return NULL;
 
-		if((ctx->flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
+		if((ctx->net_flg & LCP_NET_F_UPNP) == LCP_NET_F_UPNP && 
 				tbl->con_c[slot] > 0)
 			return NULL;
 	}
@@ -245,14 +249,14 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	}
 
 	/* Add a new connection to the connection-table */
-	if(!(con = lcp_con_add(ctx, dst, slot, LCP_F_ENC | flg)))
+	if(!(con = lcp_con_add(ctx, dst, slot, con_flg, LCP_F_ENC)))
 		return NULL;
 
 	/* Require connection send JOI */
 	con->status = 0x01;
 
 	/* If a direct connection should be extablished, skip proxy */
-	if((flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT)
+	if((con_flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT)
 		con->status = 0x04;
 
 	/* Send a single packet to the destination */
@@ -310,7 +314,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 		return -1;
 
 	/* If encryption should be used */
-	if((con->flg & LCP_F_ENC) == LCP_F_ENC) {
+	if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
 		lcp_encrypt(&cont_buf, &cont_len, buf, len, con->pub);
 	}
 	else {
@@ -327,13 +331,13 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	hdr.id = id;
 	hdr.cb = LCP_C_PSH;
 	/* TODO: Change flag */
-	hdr.flg = con->flg;
+	hdr.flg = con->pck_flg;
 
 	/* Copy everything into the packet-buffer */
 	memcpy(pck_buf, &hdr, LCP_HDR_SIZE);
 	memcpy(pck_buf + LCP_HDR_SIZE, cont_buf, cont_len);
 
-	if((con->flg & LCP_F_ENC) == LCP_F_ENC)
+	if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC)
 		free(cont_buf);
 
 	/* Add packet to the packet-queue */
@@ -379,7 +383,8 @@ LCP_API int lcp_hint(struct lcp_con *con)
 
 
 LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, 
-		struct sockaddr_in6 *dst, short slot, uint8_t flg)
+		struct sockaddr_in6 *dst, short slot, char con_flg, 
+		uint8_t pck_flg)
 {
 	struct lcp_con_lst *tbl = &ctx->con;
 	struct lcp_con *con;
@@ -396,7 +401,8 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	con->addr = *dst;
 	con->slot = slot; 
 
-	con->flg = flg;
+	con->con_flg = con_flg;
+	con->pck_flg = pck_flg;
 	con->que = NULL;
 
 	con->count = 0;
@@ -408,10 +414,10 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
 	lcp_init_pub(&con->pub);
 
 	/* Update the socket */
-	if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
+	if((ctx->net_flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
 		ctx->sock.mask[slot] += LCP_SOCK_M_KALIVE;
 
-		if((flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
+		if((con_flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
 			ctx->sock.dst[slot] = ctx->proxy_addr;
 		else
 			ctx->sock.dst[slot] = *dst;
@@ -460,9 +466,8 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 				prev->next = ptr->next;
 
 			/* Update the socket */
-			if((ctx->flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
+			if((ctx->net_flg & LCP_NET_F_PPR) == LCP_NET_F_PPR)
 				ctx->sock.mask[ptr->slot] -= LCP_SOCK_M_KALIVE;
-			}
 
 			lcp_clear_pub(&ptr->pub);
 
@@ -632,6 +637,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				else {
 					/* Push new entry in connection-list */
 					con = lcp_con_add(ctx, &cli, slot,
+							LCP_CON_F_DIRECT, 
 							hdr.flg);
 
 					/* Failed to create connection */
@@ -701,7 +707,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 			/* Acknowledge closing a connection */
 			if(ptr->status == 0x09) {
-				if((ptr->flg & 1) == 0) {
+				if(ptr->con_flg == LCP_CON_F_PROXY) {
 					ptr->status = 0x0c;
 					ptr->tout = ti;
 					ptr->count = 0;
@@ -724,7 +730,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				/* Reset status */
 				ptr->status = 0x07;
 
-				info[0] = ptr->flg;
+				info[0] = ptr->pck_flg;
 				info[1] = 0;
 
 				/* Create a new event */
@@ -780,13 +786,13 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				continue;
 
 			/* Copy the packet-flags */
-			ptr->flg = (hdr.flg & 0xfe) | (ptr->flg & 1);
+			ptr->pck_flg = hdr.flg;
 
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
 			lcp_con_send(ctx, ptr, (char *)&hdr, LCP_HDR_SIZE);
 
-			info[0] = ptr->flg;
+			info[0] = ptr->pck_flg;
 			info[1] = 1;
 
 			/* Create a new event */
@@ -830,6 +836,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -840,7 +849,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(lcp_sock_send(&ctx->sock, ptr->slot, 
 						&ctx->proxy_addr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf,
+						LCP_PROXY_HDR_SIZE);
 				goto next;
 			}
 
@@ -854,12 +864,15 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
 			hdr.cb = LCP_C_INI;	  /* Send INI-packet  */
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			tmp = sizeof(char);
@@ -882,12 +895,15 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
 			hdr.cb = LCP_C_INI | LCP_C_ACK;	  /* Send INI-packet  */
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			tmp = sizeof(char);
@@ -906,12 +922,12 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		if(ptr->status == 0x06) {
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
 
@@ -932,17 +948,20 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
 			hdr.cb = LCP_C_FIN;
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
 
@@ -956,18 +975,21 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
 			hdr.cb = LCP_C_FIN | LCP_C_ACK;
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
 
@@ -977,18 +999,18 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		if(ptr->status == 0x0a) {
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
-			hdr.flg = ptr->flg;
+			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, LCP_HDR_SIZE);
 				continue;
 			}
 
 
 			/* If a proxy is used, disconnect from proxy */
-			if((ptr->flg & 1) == 0) {
+			if(ptr->con_flg == LCP_CON_F_PROXY) {
 				ptr->status = 0x0c;
 				ptr->tout = ti;
 				ptr->count = 0;
@@ -1012,6 +1034,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -1022,7 +1047,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(lcp_sock_send(&ctx->sock, ptr->slot, 
 						&ctx->proxy_addr, buf, 4) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, 
+						LCP_PROXY_HDR_SIZE);
 				goto next;
 			}
 
@@ -1031,7 +1057,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		/* Send HNT */
 		if(ptr->status == 0x0d && ti >= ptr->tout) {
 			struct lcp_hdr proto_hdr;
-			char *tmp;
 
 			ptr->tout = ti + 1;
 			ptr->count++;
@@ -1040,17 +1065,20 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			proto_hdr.id = 0;
 			proto_hdr.cb = LCP_C_HNT;
-			proto_hdr.flg = ptr->flg & 0xfe;
+			proto_hdr.flg = ptr->pck_flg;
+			memcpy(buf, &proto_hdr, LCP_HDR_SIZE);
 
-			tmp = (char *)&proto_hdr;
-			if(lcp_con_send(ctx, ptr, tmp, LCP_HDR_SIZE) < 0) {
+			if(lcp_con_send(ctx, ptr, buf, LCP_HDR_SIZE) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
 
@@ -1077,7 +1105,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 							pck->len) < 0) {
 					lcp_push_evt(ctx, LCP_FAILED, 
 							ptr->slot, &ptr->addr, 
-							buf, 133);
+							pck->buf, pck->len);
 					goto next;
 				}
 			}
@@ -1099,7 +1127,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 	struct sockaddr_in6 *addr;
 	int ret;
 
-	if((con->flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
+	if((con->con_flg & LCP_CON_F_DIRECT) == LCP_CON_F_DIRECT) {
 		pck_buf = buf;
 		pck_len = len;
 
@@ -1121,7 +1149,7 @@ LCP_API int lcp_con_send(struct lcp_ctx *ctx, struct lcp_con *con, char *buf,
 
 	ret = lcp_sock_send(&ctx->sock, con->slot, addr, pck_buf, pck_len);
 
-	if((con->flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
+	if((con->con_flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
 		free(pck_buf);
 
 	return ret;
@@ -1151,14 +1179,13 @@ LCP_API struct lcp_con *lcp_con_sel_proxy(struct lcp_ctx *ctx, uint16_t id)
 
 	ptr = ctx->con.tbl;
 	while(ptr != NULL) {
-		if(ptr->proxy_id == id && (ptr->flg & 1) == 0)
+		if(ptr->proxy_id == id && ptr->con_flg == LCP_CON_F_PROXY)
 			return ptr;
 
 		ptr = ptr->next;
 	}
 
 	return NULL;
-
 }
 
 
@@ -1175,7 +1202,7 @@ LCP_API void lcp_con_print(struct lcp_ctx *ctx)
 		port = ctx->sock.int_port[ptr->slot];
 
 		printf("[%02x]: Flg: %02x, Port: %d(%d), Dst: %s:%d\n",
-				i, ptr->flg, port, ptr->slot,
+				i, ptr->con_flg, port, ptr->slot,
 				lcp_str_addr(AF_INET6, &ptr->addr.sin6_addr),
 				ptr->addr.sin6_port);
 

@@ -51,22 +51,6 @@ int main(void)
 	/*
 	 * Setup server-addresses for the different servers.
 	 */
-#if 0
-	memset(&main, 0, addr_sz);
-	main.sin6_family = AF_INET6;
-	main.sin6_port = htons(4242);
-	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2e:bbb1", &main.sin6_addr);
-
-	memset(&disco, 0, addr_sz);
-	disco.sin6_family = AF_INET6;
-	disco.sin6_port = htons(4243);
-	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &disco.sin6_addr);
-
-	memset(&proxy, 0, addr_sz);
-	proxy.sin6_family = AF_INET6;
-	proxy.sin6_port = htons(4244);
-	inet_pton(AF_INET6, "0:0:0:0:0:ffff:4e2f:27b2", &proxy.sin6_addr);
-#else
 	memset(&main, 0, addr_sz);
 	main.sin6_family = AF_INET6;
 	main.sin6_port = htons(4242);
@@ -81,7 +65,6 @@ int main(void)
 	proxy.sin6_family = AF_INET6;
 	proxy.sin6_port = htons(4244);
 	inet_pton(AF_INET6, "::1", &proxy.sin6_addr);
-#endif
 
 	/*
 	 * Initialize the LCP-framework.
@@ -94,7 +77,7 @@ int main(void)
 
 	printf("Internal address: %s\n", lcp_str_addr(AF_INET6, &ctx->int_addr));
 	printf("External address: %s\n", lcp_str_addr(AF_INET6, &ctx->ext_addr));
-	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->flg));
+	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->net_flg));
 
 	lcp_sock_print(&ctx->sock);
 
@@ -109,14 +92,13 @@ int main(void)
 
 		while(lcp_pull_evt(ctx, &evt)) {
 			switch(evt.type) {
-				case 0x01:
+				case LCP_CONNECTED:
 					printf("Connected to %s:%d using slot %d\n",
 							lcp_str_addr(AF_INET6, &evt.addr.sin6_addr),
 							ntohs(evt.addr.sin6_port), evt.slot);
 					
 					if(memcmp(&main, &evt.addr, sizeof(struct sockaddr_in6)) == 0) {
 						short tmp;
-						unsigned char trans_flg = ctx->flg & 0x01;
 
 						lcp_sock_get_open(&ctx->sock, &tmp, 1);
 
@@ -127,7 +109,7 @@ int main(void)
 						buf[0] = 0x43;
 						memcpy(buf + 1, &ctx->ext_addr, 16);
 						memcpy(buf + 17, &open_port, 2);
-						buf[19] = 0;
+						buf[19] = ctx->con_flg;
 
 						printf("Register on server\n");
 						lcp_send(ctx, &evt.addr, buf, 20);
@@ -149,7 +131,7 @@ int main(void)
 					}
 					break;
 
-				case 0x02:
+				case LCP_DISCONNECTED:
 					printf("Disconnected from %s:%d on slot %d\n",
 							lcp_str_addr(AF_INET6, &evt.addr.sin6_addr),
 							ntohs(evt.addr.sin6_port), evt.slot);
@@ -166,7 +148,7 @@ int main(void)
 					}
 					break;
 
-				case 0x03:
+				case LCP_RECEIVED:
 					if(evt.buf[0] == 0x44) {
 						memset(&peer, 0, addr_sz);
 						peer.sin6_family = AF_INET6;
@@ -188,7 +170,7 @@ int main(void)
 						printf("Received buffer: %s\n", evt.buf + 1);
 
 						printf("Send hint\n");
-						con->flg -= LCP_F_ENC;
+						con->pck_flg = 0;
 						lcp_hint(con);
 
 					}
@@ -200,11 +182,11 @@ int main(void)
 					}
 					break;
 
-				case 0x05:
+				case LCP_HINT:
+					printf("Recv Hint\n");	
+
 					if(evt.buf[1] != 1)
 						break;
-
-					printf("Recv Hint\n");
 					{
 						char buf[14];
 						int tmp;
@@ -216,6 +198,11 @@ int main(void)
 						printf("Send message to peer: %s\n", buf + 1);
 						lcp_send(ctx, &evt.addr, buf, 14);
 					}
+					break;
+
+				case LCP_TIMEDOUT:
+					printf("Peer timed out\n");
+					running = 0;
 					break;
 			}
 

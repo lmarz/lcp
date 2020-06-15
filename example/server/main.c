@@ -55,7 +55,7 @@ int main(void)
 	}
 
 	printf("Base port: %d\n", PORT);
-	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->flg));
+	printf("Flags: "BINARY_PATTERN"\n", BINARY(ctx->net_flg));
 
 	while(running) {
 		lcp_update(ctx);
