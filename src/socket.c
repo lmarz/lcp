@@ -59,8 +59,10 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 
 		/* Forward ports on the NAT using uPnP entry if possible */
 		if((flg & LCP_NET_F_UPNP) != 0 ) {
-			if(lcp_upnp_add(hdl, port, port) != 0)
+			if(lcp_upnp_add(hdl, port, port) != 0) {
+				lcp_errno = LCP_ESOUPNP;
 				goto err_close_socks;
+			}
 		}
 
 		tbl->pfds[i].fd = sockfd;
@@ -117,7 +119,7 @@ LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl)
 			continue;
 
 		/* When port preservation is used */
-		if((tbl->mask[i] & LCP_SOCK_M_KEEPALIVE) == LCP_SOCK_M_KEEPALIVE) {
+		if((tbl->mask[i] & LCP_SOCK_M_KALIVE) == LCP_SOCK_M_KALIVE) {
 			/* Send a keepalive-message */
 			if(ti >= tbl->tout[i]) {
 				buf[0] = 0;

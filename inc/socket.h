@@ -2,6 +2,7 @@
 #define _LCP_SOCKET_H
 
 #include "define.h"
+#include "error.h"
 #include "upnp.h"
 #include <stdint.h>
 #include <sys/socket.h>
@@ -27,7 +28,7 @@
 /* Socket-masks */
 #define LCP_SOCK_M_NONE          0x00
 #define LCP_SOCK_M_INIT          0x01
-#define LCP_SOCK_M_KEEPALIVE     0x02
+#define LCP_SOCK_M_KALIVE        0x02
 
 #define ADDR6_SIZE sizeof(struct sockaddr_in6)
 

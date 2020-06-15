@@ -10,8 +10,9 @@
 #define LCP_CONNECTED      0x01
 #define LCP_DISCONNECTED   0x02
 #define LCP_RECEIVED       0x03
-#define LCP_TIMEDOUT       0x04
-#define LCP_HINT           0x05
+#define LCP_FAILED         0x04
+#define LCP_TIMEDOUT       0x05
+#define LCP_HINT           0x06
 
 /*
  * 
