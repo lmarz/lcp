@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 
-/* Initialize the server-addresses for the DISCO- and PROXY-server */
+/* Initialize the default server-addresses for the DISCO- and PROXY-server */
 LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 {
 	memset(&ctx->disco_addr, 0, ADDR6_SIZE);
@@ -26,7 +26,7 @@ LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 }
 
 
-/* Get the LCP_APIal address and check if port preservation is enabled */
+/* Get the external address and check if port preservation is enabled */
 LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 {
 	int sockfd;
@@ -95,7 +95,7 @@ err_close_sockfd:
 }
 
 
-/* Get the internal address */
+/* Get the internal IPv6-address */
 LCP_INTERN int lcp_get_intern(struct lcp_ctx *ctx)
 {
 	struct ifaddrs *addrs;
