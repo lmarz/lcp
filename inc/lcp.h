@@ -176,6 +176,22 @@ LCP_API void lcp_update(struct lcp_ctx *ctx);
 LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr, 
 		char *buf, int len);
 
+/*
+ * Send a packet to the given destination, considering that a connection has to
+ * be established already. This function also requires an op-code which will
+ * then be inserted into the header, but will not encrypt the message. Therefore
+ * this function will be primary used to send custom RST- and ACK-packets.
+ *
+ * @ctx: Pointer to the context
+ * @addr: The address of the connection
+ * @op: The op-code to insert into the header
+ * @buf: The buffer to attach to the packet
+ * @len: The length of the buffer
+ *
+ * Returns: 0 on success or -1 if an error occurred
+ */
+LCP_API int lcp_sendto(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
+		uint8_t op, char *buf, int len);
 
 /*
  * Synchronize the connection-flags with the other side. Note that if the
