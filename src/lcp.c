@@ -315,11 +315,9 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 
 	/* If encryption should be used */
 	if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
-		printf("Encryption\n");
 		lcp_encrypt(&cont_buf, &cont_len, buf, len, con->pub);
 	}
 	else {
-		printf("No encryption\n");
 		cont_buf = buf;
 		cont_len = len;
 	}
@@ -884,7 +882,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		if(ptr->status == 0x04 && ti >= ptr->tout) {
 			ptr->tout = ti + 1;
 			ptr->count++;
-
+				
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
@@ -1111,7 +1109,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 
 		time(&ti);
-
+			
 		pck = ptr->que;
 		while(pck != NULL) {
 			if(ti >= pck->tout) {
