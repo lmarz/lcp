@@ -330,7 +330,6 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 	/* Set the packet-header */
 	hdr.id = id;
 	hdr.cb = LCP_C_PSH;
-	/* TODO: Change flag */
 	hdr.flg = con->pck_flg;
 
 	/* Copy everything into the packet-buffer */
@@ -352,6 +351,56 @@ err_free_pck_buf:
 	return -1;
 }
 
+
+LCP_API int lcp_sendto(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
+		uint8_t op, char *buf, int len)
+{
+	char *pck_buf;
+	int pck_len;
+	struct lcp_hdr hdr;
+	uint16_t id;
+	struct lcp_con *con;
+
+	/* Get the id of the packet */
+	/* TODO: Replace with better id-number */
+	id = rand() % 0xffff;
+
+	/* Get the connection */
+	if(!(con = lcp_con_sel_addr(ctx, addr)))
+		return -1;
+
+	/* The length can't be smaller than 0 */
+	len = len < 0 ? 0 : len;
+
+	/* Allocate memory for the packet */
+	pck_len = len + LCP_HDR_SIZE;
+	if(!(pck_buf = malloc(pck_len)))
+		return -1;
+
+	/* Set the packet-header */
+	hdr.id = id;
+	hdr.cb = op;
+	hdr.flg = con->pck_flg;
+
+	/* Copy everything into the packet-buffer */
+	memcpy(pck_buf, &hdr, LCP_HDR_SIZE);
+
+	/* Copy the buffer into the packet if necessary */
+	if(len > 0)
+		memcpy(pck_buf + LCP_HDR_SIZE, buf, len);
+
+	/* Add packet to the packet-queue */
+	if(lcp_que_add(con, pck_buf, pck_len, id) < 0)
+		goto err_free_pck_buf;
+
+	free(pck_buf);
+	return 0;
+
+err_free_pck_buf:
+	free(pck_buf);
+	return -1;
+
+}
 
 LCP_API void lcp_con_close(struct lcp_ctx *ctx)
 {
