@@ -402,6 +402,7 @@ err_free_pck_buf:
 
 }
 
+
 LCP_API void lcp_con_close(struct lcp_ctx *ctx)
 {
 	struct lcp_con *ptr;
@@ -682,6 +683,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				/* Require connection to send ACK */
 				ptr->status = 0x06;
+
+#if LCP_DEBUG
+				printf("Recv INI-ACK\n");
+#endif
 			}
 			/* Just INI */
 			else {
@@ -727,6 +732,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				con->status = 0x05;
 				con->tout = ti + 1;
 				con->count = 0;
+
+#if LCP_DEBUG
+				printf("Recv INI\n");
+#endif
 			}
 
 			continue;	
@@ -740,6 +749,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				/* Require connection to send ACK */
 				ptr->status = 0x0a;
+
+#if LCP_DEBUG
+				printf("Recv FIN-ACK\n");
+#endif
 			}
 			/* Just FIN */
 			else {
@@ -754,6 +767,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->status = 0x09;
 				ptr->tout = ti + 1;
 				ptr->count = 0;
+
+#if LCP_DEBUG
+				printf("Recv FIN\n");
+#endif
 			}
 			continue;
 		}
@@ -772,6 +789,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				/* Create new event */
 				lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+#if LCP_DEBUG
+				printf("Recv ACK\n");
+#endif
 
 				continue;
 			}
@@ -792,6 +813,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				/* Remove the entry from the connection-list */
 				lcp_con_remv(ctx, &ptr->addr);
 
+#if LCP_DEBUG
+				printf("Recv ACK\n");
+#endif
+
 				continue;
 			}
 			/* Acknowledge hint */
@@ -807,6 +832,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				/* Create a new event */
 				lcp_push_evt(ctx, LCP_HINT, ptr->slot,
 						&ptr->addr, info, 2);
+
+#if LCP_DEBUG
+				printf("Recv ACK\n");
+#endif
+
 				continue;
 			}
 
@@ -847,6 +877,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			/* Send an acknowledgement for the packet */
 			hdr.cb = LCP_C_ACK;
 			lcp_con_send(ctx, ptr, (char *)&hdr, LCP_HDR_SIZE);
+
+#if LCP_DEBUG
+			printf("Recv PSH\n");
+#endif
 		}
 		/* HNT */
 		if((hdr.cb & LCP_C_HNT) == LCP_C_HNT) {
@@ -869,6 +903,10 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			/* Create a new event */
 			lcp_push_evt(ctx, LCP_HINT, ptr->slot, &ptr->addr, 
 					info, 2);
+
+#if LCP_DEBUG
+			printf("Recv HNT\n");
+#endif
 		}
 	}
 }
@@ -925,6 +963,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				goto next;
 			}
 
+#if LCP_DEBUG
+			printf("Send JOI\n");
+#endif
+
 			goto next;
 		}
 		/* Send INI */
@@ -955,6 +997,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 						&ptr->addr, buf, 133);
 				goto next;
 			}
+
+#if LCP_DEBUG
+			printf("Send INI\n");
+#endif
 
 			goto next;
 		}
@@ -987,6 +1033,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				goto next;
 			}
 
+#if LCP_DEBUG
+			printf("Send INI-ACK\n");
+#endif
+
 			goto next;
 		}
 		/* Send ACK, responding to INI-ACK */
@@ -1008,6 +1058,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			/* Create new event */
 			lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, &ptr->addr, 
 					NULL, 0);
+
+#if LCP_DEBUG
+			printf("SEND ACK\n");
+#endif
 
 			goto next;
 		}
@@ -1036,6 +1090,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				goto next;
 			}
 
+#if LCP_DEBUG
+			printf("Send FIN\n");
+#endif
+
 			goto next;
 		}
 		/* Send FIN-ACK */
@@ -1063,6 +1121,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
+
+#if LCP_DEBUG
+			printf("Send FIN-ACK\n");
+#endif
 
 			goto next;
 		}
@@ -1095,6 +1157,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			/* Remove the entry from the connection-list */
 			lcp_con_remv(ctx, &ptr->addr);
 
+#if LCP_DEBUG
+			printf("Send ACK\n");
+#endif
+
 			goto next;
 		}
 		/* Send LEA to proxy */
@@ -1122,6 +1188,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 						LCP_PROXY_HDR_SIZE);
 				goto next;
 			}
+
+#if LCP_DEBUG
+			printf("Send LEA\n");
+#endif
 
 			goto next;
 		}
@@ -1152,6 +1222,10 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 						&ptr->addr, buf, LCP_HDR_SIZE);
 				goto next;
 			}
+
+#if LCP_DEBUG
+			printf("Send HNT\n");
+#endif
 
 			goto next;
 		}
