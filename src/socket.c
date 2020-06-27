@@ -39,8 +39,8 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 		tbl->mask[i] = LCP_SOCK_M_INIT;
 		tbl->fd[i] = sockfd;
 		tbl->con_c[i] = 0;
-		tbl->int_port[i] = port;
-		tbl->ext_port[i] = port;
+		tbl->int_port[i] = htons(port);
+		tbl->ext_port[i] = htons(port);
 		tbl->tout[i] = 0;
 		tbl->status[i] = 0;
 
@@ -226,8 +226,8 @@ LCP_API void lcp_sock_print(struct lcp_sock_tbl *tbl)
 	for(i = 0; i < LCP_SOCK_NUM; i++) {
 		printf("%02x:  %4d   %2d   %3d   %8d   %8d   %10lu\n", i,
 				tbl->mask[i], tbl->fd[i], tbl->con_c[i],
-				tbl->int_port[i], tbl->ext_port[i], 
-				tbl->tout[i]);
+				ntohs(tbl->int_port[i]), 
+				ntohs(tbl->ext_port[i]), tbl->tout[i]);
 	}
 	printf("\n");
 }
