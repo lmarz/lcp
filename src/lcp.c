@@ -223,7 +223,7 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx)
 
 
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port, 
-		struct sockaddr_in6 *dst, char con_flg, uint8_t pck_flg)
+		struct sockaddr_in6 *addr, char con_flg, uint8_t pck_flg)
 {
 	short slot;
 	int tmp;
@@ -247,7 +247,7 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	}
 
 	/* Add a new connection to the connection-table */
-	if(!(con = lcp_con_add(ctx, dst, slot, con_flg, pck_flg)))
+	if(!(con = lcp_con_add(ctx, slot, addr, con_flg, pck_flg)))
 		return NULL;
 
 	/* Require connection send JOI */
@@ -424,16 +424,17 @@ LCP_API int lcp_hint(struct lcp_con *con, uint8_t pck_flg)
 		return -1;
 
 	/* Can't enable encryption if keys have not been exchanged */
-	if((pck_flg & LCP_F_ENC) == LCP_F_ENC &&
-			(con->ini_pck_flg & LCP_F_ENC) != LCP_F_ENC)
+	if((pck_flg & LCP_F_ENC) != 0 && (con->ini_pck_flg & LCP_F_ENC) == 0)
 		return -1;
 
 	/* If the new flags are the same as the old ones */
 	if(con->pck_flg == pck_flg)
 		return 0;
 
+	/* Set packet-flags of connection */
 	con->pck_flg = pck_flg;
 
+	/* Update status of connection */
 	con->status = 0x0d;
 	con->tout = 0;
 	con->count = 0;
@@ -441,9 +442,8 @@ LCP_API int lcp_hint(struct lcp_con *con, uint8_t pck_flg)
 }
 
 
-LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, 
-		struct sockaddr_in6 *dst, short slot, char con_flg, 
-		uint8_t pck_flg)
+LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, short slot,
+		struct sockaddr_in6 *addr, char con_flg, uint8_t pck_flg)
 {
 	struct lcp_con_lst *tbl = &ctx->con;
 	struct lcp_con *con;
@@ -712,36 +712,34 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					con = ptr;
 				}
 				else {
+					char con_flg = LCP_CON_F_DIRECT;
+
 					/* Push new entry in connection-list */
-					con = lcp_con_add(ctx, &cli, slot,
-							LCP_CON_F_DIRECT, 
-							hdr.flg);
+					if(!(con = lcp_con_add(ctx, slot, &cli,
+									con_flg, hdr.flg))
+							continue;
+							}
 
-					/* Failed to create connection */
-					if(con == NULL)
-						continue;
-				}
+							/* If encryption enabled from the start */
+							if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
+							/* Read public-key */
+							memcpy(n, buf_ptr + 4, 128);
+							memcpy(e, buf_ptr + 132, 1);
 
-				/* If encryption enabled from the start */
-				if((con->pck_flg & LCP_F_ENC) == LCP_F_ENC) {
-					/* Read public-key */
-					memcpy(n, buf_ptr + 4, 128);
-					memcpy(e, buf_ptr + 132, 1);
+							mpz_import(con->pub.n, 128, 1, tmp, 0,
+									0, n);
+							mpz_import(con->pub.e, 1, 1, tmp, 0,
+									0, e);
+							}
 
-					mpz_import(con->pub.n, 128, 1, tmp, 0,
-							0, n);
-					mpz_import(con->pub.e, 1, 1, tmp, 0,
-							0, e);
-				}
-
-				/* Require connection to send INI-ACK */
-				con->status = 0x05;
-				con->tout = ti + 1;
-				con->count = 0;
+							/* Require connection to send INI-ACK */
+							con->status = 0x05;
+							con->tout = ti + 1;
+							con->count = 0;
 
 #if LCP_DEBUG
-				printf("Recv INI from %s\n",
-						lcp_str_addr6(&cli));
+							printf("Recv INI from %s\n",
+									lcp_str_addr6(&cli));
 #endif
 			}
 

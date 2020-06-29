@@ -127,15 +127,15 @@ LCP_API short lcp_get_slot(struct lcp_ctx *ctx);
  * be relayed over the proxy.
  *
  * @ctx: Pointer to the context
- * @port: The port to open the connection on
- * @dst: The IPv6-address to connect to
- * @con_flg: Flags indicating the type of connection, ie direct or proxy
+ * @port: The port to open the connection on (Big-Endian)
+ * @addr: The destination-address to connect to
+ * @con_flg: Flags indicating the type of connection, ie proxy(0) or direct(1)
  * @pck_flg: Flags for the packets, ie encryption
  *
  * Returns: A pointer to the new connection-struct or NULL if an error occurred
  */
 LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short slot, 
-		struct sockaddr_in6 *dst, char con_flg, uint8_t pck_flg);
+		struct sockaddr_in6 *addr, char con_flg, uint8_t pck_flg);
 
 
 /*
@@ -176,6 +176,7 @@ LCP_API void lcp_update(struct lcp_ctx *ctx);
 LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr, 
 		char *buf, int len);
 
+
 /*
  * Send a packet to the given destination, considering that a connection has to
  * be established already. This function also requires an op-code which will
@@ -193,6 +194,7 @@ LCP_API int lcp_send(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 LCP_API int lcp_sendto(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
 		uint8_t op, char *buf, int len);
 
+
 /*
  * Synchronize the connection-flags with the other side. Note that if the
  * connection has not been initialized with encryption enabled, you can't
@@ -204,6 +206,7 @@ LCP_API int lcp_sendto(struct lcp_ctx *ctx, struct sockaddr_in6 *addr,
  * Returns: 0 on success or -1 if an error occurred
  */
 LCP_API int lcp_hint(struct lcp_con *con, uint8_t pck_flg);
+
 
 /*
  * Close all connection attached to a context and clear the connection-table.
@@ -217,16 +220,15 @@ LCP_API void lcp_con_close(struct lcp_ctx *ctx);
  * Add a new connection to the connection-list.
  *
  * @ctx: Pointer to the context
- * @dst: The IPv6-address of the connection
  * @slot: The socket-slot to open the connection with
+ * @addr: The address of the connection
  * @con_flg: Flags indicating the type of connection, ie direct or proxy
  * @pck_flg: Flags for the package, ie encryption
  *
  * Returns: Pointer to the connection or NULL if an error occurred
  */
-LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx,
-		struct sockaddr_in6 *dst, short slot, 
-		char con_flg, uint8_t pck_flg);
+LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, short slot, 
+		struct sockaddr_in6 *addr, char con_flg, uint8_t pck_flg);
 
 
 /*
