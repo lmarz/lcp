@@ -131,12 +131,12 @@ LCP_API int lcp_encrypt(char **out, int *out_len, char *in, int in_len,
 	while(left > 0) {
 		int from = in_len - left;
 		int to = (i + 1) * LCP_BLOCK_SIZE;
-		int sz = (left > LCP_BUF_SIZE) ? (LCP_BUF_SIZE) : (left);
+		char sz = (char)(left > LCP_BUF_SIZE) ? (LCP_BUF_SIZE) : (left);
 		size_t enc_len = 0;	
 
 		memset(block, 0, LCP_BLOCK_SIZE);
 		block[0] = 0x01;
-		block[1] = 0x02;
+		block[1] = sz;
 		memcpy(block + 2, in + from, sz);
 
 		mpz_import(m, LCP_BLOCK_SIZE, 1, sizeof(block[0]),
@@ -170,6 +170,8 @@ LCP_API int lcp_decrypt(char **out, int *out_len, char *in, int in_len,
 	char block[LCP_BLOCK_SIZE];
 	int size = num * LCP_BUF_SIZE;
 	char *ret;
+	int ret_len = 0;
+
 	mpz_t m;
 	mpz_t c;
 
@@ -188,11 +190,12 @@ LCP_API int lcp_decrypt(char **out, int *out_len, char *in, int in_len,
 
 		mpz_export(block, NULL, 1, sizeof(char), 0, 0, m);
 
+		ret_len += block[1];
 		memcpy(ret + (i * LCP_BUF_SIZE), block + 2, LCP_BUF_SIZE);
 	}
 
 	*out = ret;
-	*out_len = size;
+	*out_len = ret_len;
 	mpz_clears(m, c, NULL);
 	return msg_idx;
 }
