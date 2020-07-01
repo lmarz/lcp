@@ -230,6 +230,10 @@ LCP_API struct lcp_con *lcp_connect(struct lcp_ctx *ctx, short port,
 	struct lcp_sock_tbl *tbl = &ctx->sock;
 	struct lcp_con *con;
 
+	/* Check if there already is a connection */
+	if((con = lcp_con_sel_addr(ctx, addr)))
+		return con;
+
 	if(port >= 0) {
 		if((slot = lcp_sock_sel_port(tbl, port)) < 0)
 			return NULL;
@@ -651,13 +655,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		else {
 			/* Get a pointer to the connection-struct */
 			ptr = lcp_con_sel_addr(ctx, &cli);
-
-			if(ptr != NULL) {
-				printf("Pointer is not NULL\n");	
-			}
-			else {
-				printf("Pointer is NULL\n");
-			}
 		}
 
 		/* Get header from buffer */
@@ -690,8 +687,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->status = 0x06;
 
 #if LCP_DEBUG
-				printf("Recv INI-ACK from %s\n", 
-						lcp_str_addr6(&cli));
+				printf("Recv INI-ACK from %s (%d)\n", 
+						lcp_str_addr6(&cli), len);
 #endif
 			}
 			/* Just INI */
@@ -740,8 +737,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				con->count = 0;
 
 #if LCP_DEBUG
-				printf("Recv INI from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv INI from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 			}
 
@@ -758,8 +755,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->status = 0x0a;
 
 #if LCP_DEBUG
-				printf("Recv FIN-ACK from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv FIN-ACK from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 			}
 			/* Just FIN */
@@ -777,8 +774,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->count = 0;
 
 #if LCP_DEBUG
-				printf("Recv FIN from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv FIN from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 			}
 			continue;
@@ -800,8 +797,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 						&ptr->addr, NULL, 0);
 
 #if LCP_DEBUG
-				printf("Recv ACK from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv ACK from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 
 				continue;
@@ -824,8 +821,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				lcp_con_remv(ctx, &ptr->addr);
 
 #if LCP_DEBUG
-				printf("Recv ACK from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv ACK from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 
 				continue;
@@ -845,8 +842,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 						&ptr->addr, info, 2);
 
 #if LCP_DEBUG
-				printf("Recv ACK from %s\n",
-						lcp_str_addr6(&cli));
+				printf("Recv ACK from %s (%d)\n",
+						lcp_str_addr6(&cli), len);
 #endif
 
 				continue;
@@ -891,8 +888,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 			lcp_con_send(ctx, ptr, (char *)&hdr, LCP_HDR_SIZE);
 
 #if LCP_DEBUG
-			printf("Recv PSH from %s\n",
-					lcp_str_addr6(&cli));
+			printf("Recv PSH from %s (%d)\n",
+					lcp_str_addr6(&cli), len);
 #endif
 		}
 		/* HNT */
@@ -918,8 +915,8 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					info, 2);
 
 #if LCP_DEBUG
-			printf("Recv HNT from %s\n",
-					lcp_str_addr6(&cli));
+			printf("Recv HNT from %s (%d)\n",
+					lcp_str_addr6(&cli), len);
 #endif
 		}
 	}
@@ -935,6 +932,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	char buf[512];
 	time_t ti;
 	int tmp;
+	int len = 0;
 
 	time(&ti);
 
@@ -978,7 +976,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 #if LCP_DEBUG
-			printf("Send JOI to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send JOI to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -991,9 +990,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ptr->count > 3) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
-
-				/* Remove connection */
-				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -1002,18 +998,25 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			tmp = sizeof(char);
-			mpz_export(buf + 4, NULL, 1, tmp, 0, 0, ctx->pub.n);
-			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
+			tmp = LCP_HDR_SIZE;
+			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
+				mpz_export(buf + 4, NULL, 1, sizeof(char), 0, 
+						0, ctx->pub.n);
+				mpz_export(buf + 132, NULL, 1, sizeof(char), 0,
+						0, ctx->pub.e);
 
-			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
+				tmp = 133;
+			}
+
+			if(lcp_con_send(ctx, ptr, buf, tmp) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, tmp);
 				goto next;
 			}
 
 #if LCP_DEBUG
-			printf("Send INI to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send INI to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1037,19 +1040,25 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			tmp = sizeof(char);
-			mpz_export(buf + 4, NULL, 1, tmp, 0, 0, ctx->pub.n);
-			mpz_export(buf + 132, NULL, 1, tmp, 0, 0, ctx->pub.e);
+			tmp = LCP_HDR_SIZE;
+			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
+				mpz_export(buf + 4, NULL, 1, sizeof(char), 0, 
+						0, ctx->pub.n);
+				mpz_export(buf + 132, NULL, 1, sizeof(char), 0,
+						0, ctx->pub.e);
 
-			if(lcp_con_send(ctx, ptr, buf, 133) < 0) {
+				tmp = 133;
+			}
+
+			if(lcp_con_send(ctx, ptr, buf, tmp) < 0) {
 				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf, 133);
+						&ptr->addr, buf, tmp);
 				goto next;
 			}
 
 #if LCP_DEBUG
-			printf("Send INI-ACK to %s\n",
-					lcp_str_addr6(&ptr->addr));
+			printf("Send INI-ACK to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1075,7 +1084,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 					NULL, 0);
 
 #if LCP_DEBUG
-			printf("Send ACK to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send ACK to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1106,7 +1116,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 #if LCP_DEBUG
-			printf("Send FIN to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send FIN to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1137,8 +1148,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 #if LCP_DEBUG
-			printf("Send FIN-ACK to %s\n",
-					lcp_str_addr6(&ptr->addr));
+			printf("Send FIN-ACK to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1173,7 +1184,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			lcp_con_remv(ctx, &ptr->addr);
 
 #if LCP_DEBUG
-			printf("Send ACK to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send ACK to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1205,7 +1217,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 #if LCP_DEBUG
-			printf("Send LEA to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send LEA to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;
@@ -1239,7 +1252,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 #if LCP_DEBUG
-			printf("Send HNT to %s\n", lcp_str_addr6(&ptr->addr));
+			printf("Send HNT to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), len);
 #endif
 
 			goto next;

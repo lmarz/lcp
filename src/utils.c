@@ -9,7 +9,7 @@ LCP_API void lcp_addr(struct sockaddr_in6 *addr, void *ip, void *port)
 	memset(addr, 0, sizeof(struct sockaddr_in6));
 	addr->sin6_family = AF_INET6;
 	memcpy(&addr->sin6_port, port, 2);
-	memcpy(&addr->sin6_addr, ip, sizeof(struct in6_addr));
+	memcpy(&addr->sin6_addr, ip, 16);
 }
 
 
