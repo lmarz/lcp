@@ -61,11 +61,11 @@ struct lcp_con_lst {
 /*
  * Define the IPv6-addresses and ports of the default servers.
  */
-#define DISCO_IP       "::1"
-#define DISCO_PORT     4243
+#define LCP_DISCO_IP       "::1"
+#define LCP_DISCO_PORT     4243
 
-#define PROXY_IP       "::1"
-#define PROXY_PORT     4244 
+#define LCP_PROXY_IP       "::1"
+#define LCP_PROXY_PORT     4244 
 
 struct lcp_ctx {
 	struct in6_addr int_addr;

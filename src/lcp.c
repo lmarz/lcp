@@ -12,14 +12,14 @@ LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
 {
 	memset(&ctx->disco_addr, 0, ADDR6_SIZE);
 	ctx->disco_addr.sin6_family = AF_INET6;
-	ctx->disco_addr.sin6_port = htons(DISCO_PORT);
-	if(inet_pton(AF_INET6, DISCO_IP, &ctx->disco_addr.sin6_addr) < 0)
+	ctx->disco_addr.sin6_port = htons(LCP_DISCO_PORT);
+	if(inet_pton(AF_INET6, LCP_DISCO_IP, &ctx->disco_addr.sin6_addr) < 0)
 		return -1;
 
 	memset(&ctx->proxy_addr, 0, ADDR6_SIZE);
 	ctx->proxy_addr.sin6_family = AF_INET6;
-	ctx->proxy_addr.sin6_port = htons(PROXY_PORT);
-	if(inet_pton(AF_INET6, PROXY_IP, &ctx->proxy_addr.sin6_addr) < 0)
+	ctx->proxy_addr.sin6_port = htons(LCP_PROXY_PORT);
+	if(inet_pton(AF_INET6, LCP_PROXY_IP, &ctx->proxy_addr.sin6_addr) < 0)
 		return -1;
 
 	return 0;
