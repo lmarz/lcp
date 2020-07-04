@@ -955,7 +955,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -988,7 +988,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 				goto next;
 			}
@@ -1027,7 +1027,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -1096,7 +1096,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -1128,7 +1128,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -1196,7 +1196,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -1232,7 +1232,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			/* Failed to send hint */
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				/* Remove connection */
@@ -1269,7 +1269,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				pck->count++;
 
 				if(pck->count > 3) {
-					lcp_push_evt(ctx, LCP_TIMEDOUT,
+					lcp_push_evt(ctx, LCP_FAILED,
 							ptr->slot, &ptr->addr,
 							NULL, 0);
 					continue;
