@@ -49,6 +49,9 @@ struct lcp_con {
 	time_t tout;
 	char count;
 
+	time_t last_kalive;
+	time_t kalive;
+
 	struct lcp_pub_key pub;
 	uint16_t proxy_id;
 };

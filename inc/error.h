@@ -17,7 +17,11 @@ LCP_GLOBAL char lcp_errno;
 /* The error-messages */
 #define LCP_ERR_TABLE(V)                                                       \
   V(LCP_ENONE,      "Success")                                                 \
-  V(LCP_ESOUPNP,    "Failed to forward port using uPnP")
+  V(LCP_ESOUPNP,    "Failed to forward port using uPnP")                       \
+  V(LCP_EDISCO,     "The discovery-server is unreachable")                     \
+  V(LCP_EINTERN,    "Couldn't get internal address")                           \
+  V(LCP_ESOCKINI,   "Failed to inialize the socket-table")                     \
+
 
 #define LCP_ERR_ID(id, text) id,
 enum lcp_err_id {

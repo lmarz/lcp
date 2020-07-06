@@ -28,7 +28,6 @@
 /* Socket-masks */
 #define LCP_SOCK_M_NONE          0x00
 #define LCP_SOCK_M_INIT          0x01
-#define LCP_SOCK_M_KALIVE        0x02
 
 #define ADDR6_SIZE sizeof(struct sockaddr_in6)
 
@@ -79,15 +78,6 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg, void *hdl,
  * @tbl: Pointer to the socket-table
  */
 LCP_API void lcp_sock_close(struct lcp_sock_tbl *tbl);
-
-
-/*
- * Update the sockets in the socket-table and send keepalive-messages if
- * necessary.
- *
- * @tbl: Pointer to the socket-table
- */
-LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl);
 
 
 /*

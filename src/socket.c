@@ -106,33 +106,6 @@ LCP_API void lcp_sock_close(struct lcp_sock_tbl *tbl)
 }
 
 
-LCP_API void lcp_sock_update(struct lcp_sock_tbl *tbl)
-{
-	time_t ti;
-	int i;
-	char buf[512];
-
-	time(&ti);
-
-	for(i = 0; i < tbl->num; i++) {
-		if(tbl->mask[i] == 0)
-			continue;
-
-		/* When port preservation is used */
-		if((tbl->mask[i] & LCP_SOCK_M_KALIVE) == LCP_SOCK_M_KALIVE) {
-			/* Send a keepalive-message */
-			if(ti >= tbl->tout[i]) {
-				buf[0] = 0;
-				buf[1] = 0;
-				
-				lcp_sock_send(tbl, i, &tbl->dst[i], buf, 2);
-				tbl->tout[i] = ti + LCP_SOCK_PPR_TOUT; 
-			}
-		}
-	}
-}
-
-
 LCP_API short lcp_sock_sel_port(struct lcp_sock_tbl *tbl, short port)
 {
 	int i;

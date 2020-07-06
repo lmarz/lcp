@@ -15,6 +15,7 @@
 #define LCP_C_HNT      0x08
 #define LCP_C_PSH      0x10
 #define LCP_C_FIN      0x20
+#define LCP_C_KAL      0x40
 
 /* Define the flag-bits */
 #define LCP_F_ENC      0x02

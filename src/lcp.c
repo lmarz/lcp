@@ -61,7 +61,7 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	serv_ptr = (struct sockaddr *)&ctx->disco_addr;
 
 	/* Send a request to the disco-server */
-	if(sendto(sockfd, "hi\0", 3, 0, serv_ptr, ADDR6_SIZE) < 0)
+	if(sendto(sockfd, "bazinga\0", 8, 0, serv_ptr, ADDR6_SIZE) < 0)
 		goto err_close_sockfd;
 
 	/* Listen for a response from the server */
@@ -161,17 +161,23 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 			ctx->proxy_addr = *proxy;
 
 		/* Discover the external address and test port preservation */
-		if(lcp_discover(ctx) < 0)
+		if(lcp_discover(ctx) < 0) {
+			lcp_errno = LCP_EDISCO;
 			goto err_free_ctx;
+		}
 
 		/* Discover the internal address */
-		if(lcp_get_intern(ctx) < 0)
+		if(lcp_get_intern(ctx) < 0) {
+			lcp_errno = LCP_EINTERN;
 			goto err_free_ctx;
+		}
 	}
 
 	/* Initialize the socket-table */
-	if(lcp_sock_init(&ctx->sock, ctx->net_flg, &ctx->upnp, base, num) < 0)
+	if(lcp_sock_init(&ctx->sock, ctx->net_flg, &ctx->upnp, base, num) < 0) {
+		lcp_errno = LCP_ESOCKINI;
 		goto err_free_ctx;
+	}
 
 	/* Initialize key-buffers */
 	lcp_init_pvt(&ctx->pvt);
@@ -288,9 +294,6 @@ LCP_API int lcp_disconnect(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 
 LCP_API void lcp_update(struct lcp_ctx *ctx)
 {
-	/* Update the socket-table */
-	lcp_sock_update(&ctx->sock);
-
 	/* Update the connection-list */
 	lcp_con_update(ctx);
 }
@@ -479,8 +482,6 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, short slot,
 
 	/* Update the socket */
 	if((ctx->net_flg & LCP_NET_F_PPR) == LCP_NET_F_PPR) {
-		ctx->sock.mask[slot] += LCP_SOCK_M_KALIVE;
-
 		if((con_flg & LCP_CON_F_DIRECT) != LCP_CON_F_DIRECT)
 			ctx->sock.dst[slot] = ctx->proxy_addr;
 		else
@@ -528,10 +529,6 @@ LCP_API void lcp_con_remv(struct lcp_ctx *ctx, struct sockaddr_in6 *addr)
 				ctx->con.tbl = ptr->next;
 			else
 				prev->next = ptr->next;
-
-			/* Update the socket */
-			if((ctx->net_flg & LCP_NET_F_PPR) == LCP_NET_F_PPR)
-				ctx->sock.mask[ptr->slot] -= LCP_SOCK_M_KALIVE;
 
 			lcp_clear_pub(&ptr->pub);
 
@@ -919,6 +916,13 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 					lcp_str_addr6(&cli), len);
 #endif
 		}
+		/* KAL */
+		if((hdr.cb & LCP_C_KAL) == LCP_C_KAL) {
+			time_t ti;
+
+			time(&ti);
+			ptr->last_kalive = ti;
+		}
 	}
 }
 
@@ -932,7 +936,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	char buf[512];
 	time_t ti;
 	int tmp;
-	int len = 0;
 
 	time(&ti);
 
@@ -1262,6 +1265,19 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 		time(&ti);
 
+		/* Check if connection timed out */
+		if(ti > ptr->last_kalive + 14) {
+			lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+					&ptr->addr, NULL, 0);
+		}
+
+		/* Send a keepalive message */
+		if(ti >= ptr->kalive) {
+			lcp_sendto(ctx, &ptr->addr, LCP_C_KAL, NULL, 0);
+			ptr->kalive = ti + 3;
+		}
+
+		/* Send or resend packets from the packet-queue */
 		pck = ptr->que;
 		while(pck != NULL) {
 			if(ti >= pck->tout) {
