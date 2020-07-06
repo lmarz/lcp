@@ -1272,6 +1272,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			if(ti > ptr->last_kalive + 14) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
+
+				/* Remove the entry from the connection-list */
+				lcp_con_remv(ctx, &ptr->addr);
 			}
 
 			/* Send a keepalive message */
