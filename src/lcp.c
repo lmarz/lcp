@@ -966,7 +966,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
-				ptr->status = 0;
+				/* Just remove the connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -974,13 +975,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			buf[1] = 0x01;
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
-			if(lcp_sock_send(&ctx->sock, ptr->slot, 
-						&ctx->proxy_addr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf,
-						LCP_PROXY_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_sock_send(&ctx->sock, ptr->slot, 
+					&ctx->proxy_addr, buf, 4);
 
 #if LCP_DEBUG
 			printf("Send JOI to %s (%d)\n",
@@ -998,15 +995,22 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
-				ptr->status = 0;
+				/*
+				 * TODO: Maybe close the proxy-link, instead of
+				 * letting it time-out.
+				 */
+
+				/* Just remove the connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI;	  /* Send INI-packet  */
+			hdr.cb = LCP_C_INI;
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
+			/* Add encryption-key if it should be enabled */
 			tmp = LCP_HDR_SIZE;
 			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
 				mpz_export(buf + 4, NULL, 1, sizeof(char), 0, 
@@ -1017,11 +1021,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				tmp = 133;
 			}
 
-			if(lcp_con_send(ctx, ptr, buf, tmp) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf, tmp);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, tmp);
 
 #if LCP_DEBUG
 			printf("Send INI to %s (%d)\n",
@@ -1039,15 +1040,17 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
-				ptr->status = 0;
+				/* Just remove the connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
 			hdr.id = 0;
-			hdr.cb = LCP_C_INI | LCP_C_ACK;	  /* Send INI-packet  */
+			hdr.cb = LCP_C_INI | LCP_C_ACK;
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
+			/* Add encryption-key if it should be enabled */
 			tmp = LCP_HDR_SIZE;
 			if((hdr.flg & LCP_F_ENC) == LCP_F_ENC) {
 				mpz_export(buf + 4, NULL, 1, sizeof(char), 0, 
@@ -1058,11 +1061,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				tmp = 133;
 			}
 
-			if(lcp_con_send(ctx, ptr, buf, tmp) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot,
-						&ptr->addr, buf, tmp);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, tmp);
 
 #if LCP_DEBUG
 			printf("Send INI-ACK to %s (%d)\n",
@@ -1080,11 +1080,13 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, LCP_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, 4);
+
+			/*
+			 * TODO: Add smth to handle the case, if sending this
+			 * single ACK-packet failed.
+			 */
 
 			/* Mark connection as established */
 			ptr->status = 0x07;
@@ -1111,11 +1113,16 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot,
-						&ptr->addr, NULL, 0);
+				/* If a proxy is used, disconnect from proxy */
+				if(ptr->con_flg == LCP_CON_F_PROXY) {
+					ptr->status = 0x0c;
+					ptr->tout = ti;
+					ptr->count = 0;
+					goto next;
+				}
 
-				/* Remove connection */
-				ptr->status = 0;
+				/* Otherwise just remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -1124,11 +1131,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, LCP_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, 4);
 
 #if LCP_DEBUG
 			printf("Send FIN to %s (%d)\n",
@@ -1143,10 +1147,16 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
-						&ptr->addr, NULL, 0);
+				/* If a proxy is used, disconnect from proxy */
+				if(ptr->con_flg == LCP_CON_F_PROXY) {
+					ptr->status = 0x0c;
+					ptr->tout = ti;
+					ptr->count = 0;
+					goto next;
+				}
 
-				ptr->status = 0;
+				/* Otherwise just remove connection */
+				lcp_con_remv(ctx, &ptr->addr);
 				goto next;
 			}
 
@@ -1155,11 +1165,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, LCP_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, 4);
 
 #if LCP_DEBUG
 			printf("Send FIN-ACK to %s (%d)\n",
@@ -1175,21 +1182,15 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
-			if(lcp_con_send(ctx, ptr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
-						&ptr->addr, buf, LCP_HDR_SIZE);
-
-				ptr->status = 0;
-				continue;
-			}
-
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, 4);
 
 			/* If a proxy is used, disconnect from proxy */
 			if(ptr->con_flg == LCP_CON_F_PROXY) {
 				ptr->status = 0x0c;
 				ptr->tout = ti;
 				ptr->count = 0;
-				continue;
+				goto next;
 			}
 
 			/* Create new event */
@@ -1212,11 +1213,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->count++;
 
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_UNAVAILABLE, ptr->slot, 
-						&ptr->addr, NULL, 0);
-
-				/* Remove connection */
-				ptr->status = 0;
+				/* Just remove the connection */
+				lcp_con_remv(ctx, &ptr->addr);	
 				goto next;
 			}
 
@@ -1224,13 +1222,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			buf[1] = 0x02;
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
-			if(lcp_sock_send(&ctx->sock, ptr->slot, 
-						&ctx->proxy_addr, buf, 4) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, 
-						LCP_PROXY_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_sock_send(&ctx->sock, ptr->slot, 
+					&ctx->proxy_addr, buf, 4);
 
 #if LCP_DEBUG
 			printf("Send LEA to %s (%d)\n",
@@ -1248,7 +1242,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			/* Failed to send hint */
 			if(ptr->count > 3) {
-				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+				lcp_push_evt(ctx, LCP_HNTFAILED, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
 				ptr->status = 0x07;
@@ -1260,11 +1254,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			proto_hdr.flg = ptr->pck_flg;
 			memcpy(buf, &proto_hdr, LCP_HDR_SIZE);
 
-			if(lcp_con_send(ctx, ptr, buf, LCP_HDR_SIZE) < 0) {
-				lcp_push_evt(ctx, LCP_FAILED, ptr->slot, 
-						&ptr->addr, buf, LCP_HDR_SIZE);
-				goto next;
-			}
+			/* Send packet */
+			lcp_con_send(ctx, ptr, buf, LCP_HDR_SIZE);
 
 #if LCP_DEBUG
 			printf("Send HNT to %s (%d)\n",
@@ -1274,19 +1265,20 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			goto next;
 		}
 
+		if(ptr->status == 0x07) {
+			time(&ti);
 
-		time(&ti);
+			/* Check if connection timed out */
+			if(ti > ptr->last_kalive + 14) {
+				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
+						&ptr->addr, NULL, 0);
+			}
 
-		/* Check if connection timed out */
-		if(ti > ptr->last_kalive + 14) {
-			lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
-					&ptr->addr, NULL, 0);
-		}
-
-		/* Send a keepalive message */
-		if(ti >= ptr->kalive) {
-			lcp_sendto(ctx, &ptr->addr, LCP_C_KAL, NULL, 0);
-			ptr->kalive = ti + 3;
+			/* Send a keepalive message */
+			if(ti >= ptr->kalive) {
+				lcp_sendto(ctx, &ptr->addr, LCP_C_KAL, NULL, 0);
+				ptr->kalive = ti + 3;
+			}
 		}
 
 		/* Send or resend packets from the packet-queue */
@@ -1299,20 +1291,15 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				if(pck->count > 3) {
 					lcp_push_evt(ctx, LCP_FAILED,
 							ptr->slot, &ptr->addr,
-							NULL, 0);
+							pck->buf, pck->len);
 
 					/* Remove package from the package-list */
 					lcp_que_remv(ptr, pck);
 					continue;
 				}
 
-				if(lcp_con_send(ctx, ptr, pck->buf, 
-							pck->len) < 0) {
-					lcp_push_evt(ctx, LCP_FAILED, 
-							ptr->slot, &ptr->addr, 
-							pck->buf, pck->len);
-					goto next;
-				}
+				/* Send the packet */
+				lcp_con_send(ctx, ptr, pck->buf, pck->len);
 			}
 
 			pck = pck->next;

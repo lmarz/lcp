@@ -11,11 +11,12 @@
 #define LCP_DISCONNECTED   0x02
 #define LCP_RECEIVED       0x03
 
-#define LCP_TIMEDOUT       0x04
-#define LCP_FAILED         0x05
-#define LCP_UNAVAILABLE    0x06
+#define LCP_UNAVAILABLE    0x04
+#define LCP_TIMEDOUT       0x05
+#define LCP_FAILED         0x06
+#define LCP_HNTFAILED      0x07
 
-#define LCP_HINT           0x07
+#define LCP_HINT           0x08
 
 /*
  * 
