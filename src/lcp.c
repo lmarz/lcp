@@ -789,6 +789,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				/* Mark connection as established */
 				ptr->status = 0x07;
 
+				/* Set timeouts */
+				time(&ti);
+				ptr->last_kalive = ti;
+				ptr->kalive = 0;
+
 				/* Create new event */
 				lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, 
 						&ptr->addr, NULL, 0);
@@ -1068,6 +1073,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send ACK, responding to INI-ACK */
 		if(ptr->status == 0x06) {
+			time_t ti;
+
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
 			hdr.flg = ptr->pck_flg;
@@ -1081,6 +1088,11 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 			/* Mark connection as established */
 			ptr->status = 0x07;
+
+			/* Set timeouts */
+			time(&ti);
+			ptr->last_kalive = ti;
+			ptr->kalive = 0;
 
 			/* Create new event */
 			lcp_push_evt(ctx, LCP_CONNECTED, ptr->slot, &ptr->addr, 
