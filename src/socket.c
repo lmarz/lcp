@@ -157,7 +157,7 @@ LCP_API int lcp_sock_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
 	int r;
 	unsigned int size = ADDR6_SIZE;
 
-	if(poll(tbl->pfds, LCP_SOCK_NUM, 0) < 0)
+	if(poll(tbl->pfds, tbl->num, 0) < 0)
 		return 0;
 
 	for(i = 0; i < tbl->num; i++) {

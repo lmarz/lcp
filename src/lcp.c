@@ -938,6 +938,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	struct lcp_con *ptr;
 	struct lcp_hdr hdr;
 	struct lcp_pck_que *pck;
+	struct lcp_pck_que *pck_next;
 	char buf[512];
 	time_t ti;
 	int tmp;
@@ -1275,6 +1276,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 				/* Remove the entry from the connection-list */
 				lcp_con_remv(ctx, &ptr->addr);
+				goto next;
 			}
 
 			/* Send a keepalive message */
@@ -1287,6 +1289,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		/* Send or resend packets from the packet-queue */
 		pck = ptr->que;
 		while(pck != NULL) {
+			pck_next = pck->next;
+
 			if(ti >= pck->tout) {
 				pck->tout = ti + 1;
 				pck->count++;
@@ -1298,6 +1302,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 					/* Remove package from the package-list */
 					lcp_que_remv(ptr, pck);
+					pck = pck_next;
 					continue;
 				}
 
@@ -1305,8 +1310,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 				lcp_con_send(ctx, ptr, pck->buf, pck->len);
 			}
 
-			pck = pck->next;
+			pck = pck_next;
 		}
+
 
 next:
 		ptr = next;
