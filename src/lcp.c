@@ -141,6 +141,13 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		/* Set the initial values of the connection-list */
 		ctx->con.tbl = NULL;
 		ctx->con.num = 0;
+
+		/* Set default values for internal and external address */
+		inet_pton(AF_INET6, "::1", &ctx->int_addr);
+		inet_pton(AF_INET6, "::1", &ctx->ext_addr);
+
+		if(proxy != NULL)
+			ctx->proxy_addr = *proxy;
 	}
 	else {
 		/* Set initial values of variables of the context */
