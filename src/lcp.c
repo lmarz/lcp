@@ -192,6 +192,10 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 
 	/* Initialize the keys */
 	lcp_gen_keys(&ctx->pvt, &ctx->pub);
+
+	/* Get current timestamp */
+	gettimeofday(&ctx->start_ts, NULL);
+
 	return ctx;
 
 err_free_ctx:
@@ -462,9 +466,9 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, short slot,
 	struct lcp_con_lst *tbl = &ctx->con;
 	struct lcp_con *con;
 	struct lcp_con *ptr;
-	time_t ti;
+	uint32_t ti;
 
-	time(&ti);
+	ti = lcp_gettime(ctx);
 
 	/* Allocate memory for the new entry */
 	if(!(con = malloc(sizeof(struct lcp_con))))
@@ -600,11 +604,11 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	char *buf_ptr;
 	int len;
 	short slot;
-	time_t ti;
+	uint32_t ti;
 	struct sockaddr_in6 cli;
 	uint16_t proxy_id;
 
-	time(&ti);
+	ti = lcp_gettime(ctx);
 
 	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
 		buf_ptr = buf;
@@ -737,7 +741,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				/* Require connection to send INI-ACK */
 				con->status = 0x05;
-				con->tout = ti + 1;
+				con->tout = ti + 500;
 				con->count = 0;
 
 #if LCP_DEBUG
@@ -774,7 +778,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 
 				/* Require connection to send FIN-ACK */
 				ptr->status = 0x09;
-				ptr->tout = ti + 1;
+				ptr->tout = ti + 500;
 				ptr->count = 0;
 
 #if LCP_DEBUG
@@ -797,7 +801,6 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 				ptr->status = 0x07;
 
 				/* Set timeouts */
-				time(&ti);
 				ptr->last_kalive = ti;
 				ptr->kalive = 0;
 
@@ -930,10 +933,16 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 		}
 		/* KAL */
 		if((hdr.cb & LCP_C_KAL) == LCP_C_KAL) {
-			time_t ti;
+			if(ptr == NULL)
+				continue;
 
-			time(&ti);
+			/* Update keepalive-timer */
 			ptr->last_kalive = ti;
+
+#if LCP_DEBUG
+			printf("Recv KAL from %s (%d)\n",
+					lcp_str_addr6(&cli), len);
+#endif
 		}
 	}
 }
@@ -947,10 +956,11 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	struct lcp_pck_que *pck;
 	struct lcp_pck_que *pck_next;
 	char buf[512];
-	time_t ti;
+	uint32_t ti;
+	int len;
 	int tmp;
 
-	time(&ti);
+	ti = lcp_gettime(ctx);
 
 	/* Process incoming packets */
 	lcp_con_recv(ctx);
@@ -967,7 +977,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 		/* Send JOI */
 		if(ptr->status == 0x01 && ti >= ptr->tout) {
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -984,8 +994,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
 			/* Send packet */
+			len = 4;
 			lcp_sock_send(&ctx->sock, ptr->slot, 
-					&ctx->proxy_addr, buf, 4);
+					&ctx->proxy_addr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send JOI to %s (%d)\n",
@@ -996,7 +1007,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send INI */
 		if(ptr->status == 0x04 && ti >= ptr->tout) {
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -1030,7 +1041,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, tmp);
+			len = tmp;
+			lcp_con_send(ctx, ptr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send INI to %s (%d)\n",
@@ -1041,7 +1053,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send INI-ACK */
 		if(ptr->status == 0x05 && ti >= ptr->tout) {
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -1070,7 +1082,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			}
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, tmp);
+			len = tmp;
+			lcp_con_send(ctx, ptr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send INI-ACK to %s (%d)\n",
@@ -1081,15 +1094,14 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send ACK, responding to INI-ACK */
 		if(ptr->status == 0x06) {
-			time_t ti;
-
 			hdr.id = 0;
 			hdr.cb = LCP_C_ACK;
 			hdr.flg = ptr->pck_flg;
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, 4);
+			len = 4;
+			lcp_con_send(ctx, ptr, buf, len);
 
 			/*
 			 * TODO: Add smth to handle the case, if sending this
@@ -1100,7 +1112,6 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			ptr->status = 0x07;
 
 			/* Set timeouts */
-			time(&ti);
 			ptr->last_kalive = ti;
 			ptr->kalive = 0;
 
@@ -1117,7 +1128,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send FIN */
 		if(ptr->status == 0x08 && ti >= ptr->tout) {	
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -1140,7 +1151,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, 4);
+			len = 4;
+			lcp_con_send(ctx, ptr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send FIN to %s (%d)\n",
@@ -1151,7 +1163,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send FIN-ACK */
 		if(ptr->status == 0x09 && ti >= ptr->tout) {	
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -1174,7 +1186,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, 4);
+			len = 4;
+			lcp_con_send(ctx, ptr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send FIN-ACK to %s (%d)\n",
@@ -1191,7 +1204,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf, &hdr, LCP_HDR_SIZE);
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, 4);
+			len = 4;
+			lcp_con_send(ctx, ptr, buf, len);
 
 			/* If a proxy is used, disconnect from proxy */
 			if(ptr->con_flg == LCP_CON_F_PROXY) {
@@ -1217,7 +1231,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 		/* Send LEA to proxy */
 		if(ptr->status == 0x0c && ti >= ptr->tout) {
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			if(ptr->count > 3) {
@@ -1231,8 +1245,9 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf + 2, &ptr->proxy_id, 2);
 
 			/* Send packet */
+			len = 4;
 			lcp_sock_send(&ctx->sock, ptr->slot, 
-					&ctx->proxy_addr, buf, 4);
+					&ctx->proxy_addr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send LEA to %s (%d)\n",
@@ -1245,7 +1260,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		if(ptr->status == 0x0d && ti >= ptr->tout) {
 			struct lcp_hdr proto_hdr;
 
-			ptr->tout = ti + 1;
+			ptr->tout = ti + 500;
 			ptr->count++;
 
 			/* Failed to send hint */
@@ -1263,7 +1278,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			memcpy(buf, &proto_hdr, LCP_HDR_SIZE);
 
 			/* Send packet */
-			lcp_con_send(ctx, ptr, buf, LCP_HDR_SIZE);
+			len = LCP_HDR_SIZE;
+			lcp_con_send(ctx, ptr, buf, len);
 
 #if LCP_DEBUG
 			printf("Send HNT to %s (%d)\n",
@@ -1274,10 +1290,8 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 		}
 
 		if(ptr->status == 0x07) {
-			time(&ti);
-
 			/* Check if connection timed out */
-			if(ti > ptr->last_kalive + 14) {
+			if(ti > ptr->last_kalive + LCP_TOUT_TI) {
 				lcp_push_evt(ctx, LCP_TIMEDOUT, ptr->slot, 
 						&ptr->addr, NULL, 0);
 
@@ -1289,7 +1303,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			/* Send a keepalive message */
 			if(ti >= ptr->kalive) {
 				lcp_sendto(ctx, &ptr->addr, LCP_C_KAL, NULL, 0);
-				ptr->kalive = ti + 3;
+				ptr->kalive = ti + LCP_KAL_TI;
 			}
 		}
 
@@ -1299,7 +1313,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 			pck_next = pck->next;
 
 			if(ti >= pck->tout) {
-				pck->tout = ti + 1;
+				pck->tout = ti + 500;
 				pck->count++;
 
 				if(pck->count > 3) {
@@ -1315,6 +1329,11 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 
 				/* Send the packet */
 				lcp_con_send(ctx, ptr, pck->buf, pck->len);
+
+#if LCP_DEBUG
+				printf("Send PSH to %s (%d)\n",
+					lcp_str_addr6(&ptr->addr), pck->len);
+#endif
 			}
 
 			pck = pck_next;
@@ -1426,9 +1445,6 @@ LCP_API void lcp_con_print(struct lcp_ctx *ctx)
 LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 {
 	struct lcp_pck_que *pck;
-	time_t ti;
-
-	time(&ti);
 
 	if(buf == NULL || len <= 0)
 		return -1;
@@ -1463,6 +1479,7 @@ LCP_API int lcp_que_add(struct lcp_con *con, char *buf, int len, uint16_t id)
 		pck->prev = ptr;
 		ptr->next = pck;
 	}
+
 	return 0;
 
 err_free_pck:
@@ -1508,4 +1525,16 @@ LCP_API struct lcp_pck_que *lcp_que_sel(struct lcp_con *con, uint16_t id)
 	}
 
 	return NULL;
+}
+
+
+LCP_API uint32_t lcp_gettime(struct lcp_ctx *ctx)
+{
+	struct timeval ti;
+	uint32_t ts;
+
+	gettimeofday(&ti, NULL);
+	ts = (ti.tv_sec - ctx->start_ts.tv_sec) * 1000;
+	ts += (ti.tv_usec - ctx->start_ts.tv_usec) / 1000;
+	return ts;
 }

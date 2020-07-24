@@ -11,12 +11,16 @@ struct lcp_ctx;
 #include "socket.h"
 #include "event.h"
 #include <time.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 
 #define LCP_PCK_MAX    504
 #define LCP_BUF_MAX    496
+
+#define LCP_TOUT_TI    14000
+#define LCP_KAL_TI     2000
 
 /* An entry in the send-que, to verify the packet reached it's destination */
 struct lcp_pck_que;
@@ -29,7 +33,7 @@ struct lcp_pck_que {
 	int len;
 
 	char count;
-	time_t tout;
+	uint32_t tout;
 };
 
 struct lcp_con;
@@ -46,11 +50,11 @@ struct lcp_con {
 	struct lcp_pck_que *que;
 
 	char status;
-	time_t tout;
+	uint32_t tout;
 	char count;
 
-	time_t last_kalive;
-	time_t kalive;
+	uint32_t last_kalive;
+	uint32_t kalive;
 
 	struct lcp_pub_key pub;
 	uint16_t proxy_id;
@@ -86,6 +90,8 @@ struct lcp_ctx {
 
 	struct lcp_pvt_key pvt;
 	struct lcp_pub_key pub;
+
+	struct timeval start_ts;
 };
 
 
@@ -337,5 +343,15 @@ LCP_API void lcp_que_remv(struct lcp_con *con, struct lcp_pck_que *ele);
  * 	or if the package could not be found
  */
 LCP_API struct lcp_pck_que *lcp_que_sel(struct lcp_con *con, uint16_t id);
+
+
+/*
+ * Get the time in milliseconds since the LCP-context has been initialized.
+ *
+ * @ctx: Pointer to the context
+ *
+ * Returns: Get the time in milliseconds since the context has been initialized
+ */
+LCP_API uint32_t lcp_gettime(struct lcp_ctx *ctx);
 
 #endif
