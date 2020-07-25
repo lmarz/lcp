@@ -468,7 +468,7 @@ LCP_API struct lcp_con *lcp_con_add(struct lcp_ctx *ctx, short slot,
 	struct lcp_con *ptr;
 	uint32_t ti;
 
-	ti = lcp_gettime(ctx);
+	ti = lcp_time(ctx);
 
 	/* Allocate memory for the new entry */
 	if(!(con = malloc(sizeof(struct lcp_con))))
@@ -608,7 +608,7 @@ LCP_INTERN void lcp_con_recv(struct lcp_ctx *ctx)
 	struct sockaddr_in6 cli;
 	uint16_t proxy_id;
 
-	ti = lcp_gettime(ctx);
+	ti = lcp_time(ctx);
 
 	while(lcp_sock_recv(sock, buf, 512, &len, &cli, &slot)) {
 		buf_ptr = buf;
@@ -960,7 +960,7 @@ LCP_API void lcp_con_update(struct lcp_ctx *ctx)
 	int len;
 	int tmp;
 
-	ti = lcp_gettime(ctx);
+	ti = lcp_time(ctx);
 
 	/* Process incoming packets */
 	lcp_con_recv(ctx);
@@ -1528,7 +1528,7 @@ LCP_API struct lcp_pck_que *lcp_que_sel(struct lcp_con *con, uint16_t id)
 }
 
 
-LCP_API uint32_t lcp_gettime(struct lcp_ctx *ctx)
+LCP_API uint32_t lcp_time(struct lcp_ctx *ctx)
 {
 	struct timeval ti;
 	uint32_t ts;

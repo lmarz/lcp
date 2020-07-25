@@ -19,7 +19,7 @@ struct lcp_ctx;
 #define LCP_PCK_MAX    504
 #define LCP_BUF_MAX    496
 
-#define LCP_TOUT_TI    14000
+#define LCP_TOUT_TI    4200
 #define LCP_KAL_TI     2000
 
 /* An entry in the send-que, to verify the packet reached it's destination */
@@ -352,6 +352,6 @@ LCP_API struct lcp_pck_que *lcp_que_sel(struct lcp_con *con, uint16_t id);
  *
  * Returns: Get the time in milliseconds since the context has been initialized
  */
-LCP_API uint32_t lcp_gettime(struct lcp_ctx *ctx);
+LCP_API uint32_t lcp_time(struct lcp_ctx *ctx);
 
 #endif
