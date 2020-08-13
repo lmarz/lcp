@@ -10,15 +10,15 @@
 #include <poll.h>
 
 /* Connnection-flags */
-#define LCP_CON_F_PROXY    0x00
-#define LCP_CON_F_DIRECT   0x01
+#define LCP_CON_F_PROXY    (0<<0)
+#define LCP_CON_F_DIRECT   (1<<0)
 
 /* Network-flags */
-#define LCP_NET_F_OPEN     0x04
-#define LCP_NET_F_PPR      0x08
-#define LCP_NET_F_UPNP     0x10
-#define LCP_NET_F_PMP      0x20
-#define LCP_NET_F_PCP      0x40
+#define LCP_NET_F_OPEN     (1<<2)
+#define LCP_NET_F_PPR      (1<<3)
+#define LCP_NET_F_UPNP     (1<<4)
+#define LCP_NET_F_PMP      (1<<5)
+#define LCP_NET_F_PCP      (1<<6)
 
 #define LCP_SOCK_NUM         10
 #define LCP_SOCK_MIN_PORT    25290

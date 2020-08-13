@@ -9,13 +9,13 @@
 
 
 /* Define the control-bits */
-#define LCP_C_INI      0x01
-#define LCP_C_ACK      0x02
-#define LCP_C_RST      0x04
-#define LCP_C_HNT      0x08
-#define LCP_C_PSH      0x10
-#define LCP_C_FIN      0x20
-#define LCP_C_KAL      0x40
+#define LCP_C_INI (1<<0)
+#define LCP_C_ACK (1<<1)
+#define LCP_C_RST (1<<2)
+#define LCP_C_HNT (1<<3)
+#define LCP_C_PSH (1<<4)
+#define LCP_C_FIN (1<<5)
+#define LCP_C_KAL (1<<6)
 
 /* Define the flag-bits */
 #define LCP_F_ENC      0x02
