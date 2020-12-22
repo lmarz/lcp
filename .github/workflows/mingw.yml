@@ -1,0 +1,39 @@
+name: Build Test (Windows)
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install gcc-mingw-w64-x86-64
+
+    - name: Build gmp
+      run: |
+        wget https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz
+        tar -xvf gmp-6.2.1.tar.xz
+        cd gmp-6.2.1
+        mkdir build
+        cd build
+        ../configure --prefix=/usr/x86_64-w64-mingw32 --build=x86_64-w64-mingw32 --disable-shared
+        make -j$(nprocs)
+        sudo make install
+        cd ../..
+        rm -rf gmp-6.2.1*
+
+    - name: Build miniupnpc
+      run: |
+        svn checkout https://github.com/miniupnp/miniupnp/trunk/miniupnpc
+        cd miniupnpc
+        make -f Makefile.mingw DLLWRAP=x86_64-w64-mingw32-dllwrap CC=x86_64-w64-mingw32-gcc WINDRES=x86_64-w64-mingw32-windres AR=x86_64-w64-mingw32-gcc-ar
+
+    - name: make
+      run: |
+        mkdir obj
+        make -f Makefile.mingw
