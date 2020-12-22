@@ -2,6 +2,7 @@
 #define _LCP_UPNP_H
 
 #include "define.h"
+#define MINIUPNP_STATICLIB
 #include "../miniupnpc/miniupnpc.h"
 #include "../miniupnpc/upnpcommands.h"
 

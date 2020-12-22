@@ -1,11 +1,18 @@
 #include "lcp.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <sys/time.h>
-#include <sys/types.h>
+#include <unistd.h>
+#ifndef __MINGW32__
+#include <arpa/inet.h>
 #include <ifaddrs.h>
+#endif /* __MINGW32__ */
+
+#include "error.h"
+#include "event.h"
+#include "header.h"
+#include "utils.h"
 
 /* Initialize the default server-addresses for the DISCO- and PROXY-server */
 LCP_INTERN int lcp_init_addr(struct lcp_ctx *ctx)
@@ -35,18 +42,26 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 	struct sockaddr *cli_ptr = (struct sockaddr *)&cli;
 	struct sockaddr *serv_ptr;
 	struct sockaddr_in6 res;
+#ifndef __MINGW32__
 	struct timeval tv;
 	int tv_sz = sizeof(struct timeval);
+#else
+	unsigned long timeval = 1000;
+#endif /* __MINGW32__ */
 
 	if((sockfd = socket(PF_INET6, SOCK_DGRAM, 0)) < 0)
 		return -1;
 
+#ifndef __MINGW32__
 	/* Set timeout for receiving data */
 	tv.tv_sec = 1;
 	tv.tv_usec = 0;
 	if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, tv_sz) < 0)
 		goto err_close_sockfd;
-
+#else
+	if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeval, sizeof(DWORD)) < 0)
+		goto err_close_sockfd;
+#endif /* __MINGW32__ */
 	/* Choose a random port */
 	port = 27000 + (rand() % 2525);
 
@@ -65,7 +80,7 @@ LCP_INTERN int lcp_discover(struct lcp_ctx *ctx)
 		goto err_close_sockfd;
 
 	/* Listen for a response from the server */
-	if(recvfrom(sockfd, &res, ADDR6_SIZE, 0, NULL, NULL) < 0)
+	if(recvfrom(sockfd, (char *)&res, ADDR6_SIZE, 0, NULL, NULL) < 0)
 		goto err_close_sockfd;
 
 	/* Copy the external IPv6-address and port */
@@ -98,6 +113,7 @@ err_close_sockfd:
 /* Get the internal IPv6-address */
 LCP_INTERN int lcp_get_intern(struct lcp_ctx *ctx)
 {
+#ifndef __MINGW32__
 	struct ifaddrs *addrs;
 	struct ifaddrs *tmp;
 	struct sockaddr_in *paddr;
@@ -121,6 +137,32 @@ LCP_INTERN int lcp_get_intern(struct lcp_ctx *ctx)
 
 	freeifaddrs(addrs);
 	return ret;
+#else
+	PIP_ADAPTER_ADDRESSES tmp;
+	struct sockaddr_in *paddr;
+	unsigned long size = 15000;
+	PIP_ADAPTER_ADDRESSES addresses = HeapAlloc(GetProcessHeap(), 0, size);
+	int ret = GetAdaptersAddresses(AF_INET6, 0, NULL, addresses, &size);
+	if(ret != ERROR_SUCCESS) {
+		fprintf(stderr, "GetAdaptersAddresses returns %d\n", ret);
+		return ret;
+	}
+
+	tmp = addresses;
+	while(tmp) {
+		if(tmp->FirstAnycastAddress->Address.lpSockaddr->sa_family == AF_INET) {
+			paddr = (struct sockaddr_in *)tmp->FirstAnycastAddress->Address.lpSockaddr;
+			if(*(int *)&paddr->sin_addr != 0x0100007F) {
+				lcp_btob_4to6(&paddr->sin_addr, &ctx->int_addr);
+				ret = 0;
+				break;
+			}
+		}
+		tmp = tmp->Next;
+	}
+	HeapFree(GetProcessHeap(), 0, addresses);
+	return ret;
+#endif /* __MINGW32__ */
 }
 
 
@@ -128,6 +170,15 @@ LCP_API struct lcp_ctx *lcp_init(short base, short num, char ovw,
 		struct sockaddr_in6 *disco, struct sockaddr_in6 *proxy)
 {
 	struct lcp_ctx *ctx;
+
+#ifdef __MINGW32__
+	WSADATA wsaData;
+	int res;
+	res = WSAStartup(WINSOCK_VERSION, &wsaData);
+	if(res != 0) {
+		fprintf(stderr, "WSAStartup failed: %d\n", res);
+	}
+#endif
 
 	if(!(ctx = malloc(sizeof(struct lcp_ctx))))
 		return NULL;
@@ -208,6 +259,10 @@ LCP_API void lcp_close(struct lcp_ctx *ctx)
 {
 	if(!ctx)
 		return;
+
+#ifdef __MINGW32__
+	WSACleanup();
+#endif
 
 	/* Clear key-buffers */
 	lcp_clear_pvt(&ctx->pvt);

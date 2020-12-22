@@ -1,8 +1,10 @@
 #include "utils.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+#include <stdio.h>
+#include <string.h>
+#ifndef __MINGW32__
+#include <arpa/inet.h>
+#endif /* __MINGW32__ */
 
 LCP_API void lcp_addr(struct sockaddr_in6 *addr, void *ip, void *port)
 {

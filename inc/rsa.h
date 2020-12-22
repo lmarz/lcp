@@ -1,8 +1,9 @@
 #ifndef _LCP_RSA_H
 #define _LCP_RSA_H
 
-#include "define.h"
 #include <gmp.h>
+
+#include "define.h"
 
 #define LCP_MODULUS_SIZE     1024
 #define LCP_BLOCK_SIZE       (LCP_MODULUS_SIZE/8)

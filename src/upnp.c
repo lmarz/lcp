@@ -1,10 +1,7 @@
 #include "upnp.h"
-#include "error.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-
 
 LCP_API int lcp_upnp_prep(struct lcp_upnp_hdl *hdl)
 {

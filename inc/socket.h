@@ -1,13 +1,15 @@
 #ifndef _LCP_SOCKET_H
 #define _LCP_SOCKET_H
 
-#include "define.h"
-#include "error.h"
-#include "upnp.h"
 #include <stdint.h>
-#include <sys/socket.h>
+#ifdef __MINGW32__
+#include <ws2tcpip.h>
+#else
 #include <netinet/in.h>
 #include <poll.h>
+#endif /* __MINGW32__ */
+
+#include "define.h"
 
 /* Connnection-flags */
 #define LCP_CON_F_PROXY    (0<<0)

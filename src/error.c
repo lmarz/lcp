@@ -1,6 +1,4 @@
 #include "error.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 /* Redefine global error-code */
 char lcp_errno = 0;

@@ -1,11 +1,13 @@
 #ifndef _LCP_UTILS_H
 #define _LCP_UTILS_H
 
-#include "define.h"
+#ifdef __MINGW32__
+#include <ws2tcpip.h>
+#else
 #include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
+#endif /* __MINGW32__ */
 
+#include "define.h"
 
 /*
  * Set a address-struct in a standardized way.

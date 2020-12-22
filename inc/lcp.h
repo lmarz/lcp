@@ -1,20 +1,19 @@
 #ifndef _LCP_H
 #define _LCP_H
 
-struct lcp_ctx;
-
-#include "define.h"
-#include "error.h"
-#include "utils.h"
-#include "rsa.h"
-#include "header.h"
-#include "socket.h"
-#include "event.h"
-#include <time.h>
 #include <sys/time.h>
-#include <sys/socket.h>
+#ifdef __MINGW32__
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#else
 #include <netinet/in.h>
-#include <unistd.h>
+#endif /* __MINGW32__ */
+
+#include "rsa.h"
+#include "socket.h"
+#include "upnp.h"
+
+struct lcp_ctx;
 
 #define LCP_PCK_MAX    504
 #define LCP_BUF_MAX    496

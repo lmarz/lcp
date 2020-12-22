@@ -1,10 +1,10 @@
 #include "rsa.h"
+
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
-
 
 LCP_API void lcp_init_pvt(struct lcp_pvt_key *pvt)
 {

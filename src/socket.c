@@ -1,15 +1,12 @@
 #include "socket.h"
-#include "utils.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
 
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "error.h"
+#include "upnp.h"
 
 LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg, 
 		void *hdl, short base, short num)
@@ -19,6 +16,9 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 	int sockfd;
 	struct sockaddr_in6 addr;
 	struct sockaddr *addr_ptr = (struct sockaddr *)&addr;
+#ifdef __MINGW32__
+	u_long nonblock = 1;
+#endif /* __MINGW32__ */
 
 	base = (base <= 0) ? LCP_SOCK_MIN_PORT : base;
 	num = (num <= 0 || num > LCP_SOCK_NUM) ? LCP_SOCK_NUM : num;
@@ -54,8 +54,13 @@ LCP_API int lcp_sock_init(struct lcp_sock_tbl *tbl, char flg,
 			goto err_close_socks;
 
 		/* Set socket non-blocking */
+#ifndef __MINGW32__
 		if(fcntl(sockfd, F_SETFL, O_NONBLOCK)  < 0)
 			goto err_close_socks;
+#else
+		if(ioctlsocket(sockfd, FIONBIO, &nonblock) != NO_ERROR)
+			goto err_close_socks;
+#endif /* __MINGW32__ */
 
 		/* Forward ports on the NAT using uPnP entry if possible */
 		if((flg & LCP_NET_F_UPNP) != 0 ) {
@@ -155,10 +160,19 @@ LCP_API int lcp_sock_recv(struct lcp_sock_tbl *tbl, char *buf, int max_len,
 {
 	int i;
 	int r;
+#ifndef __MINGW32__
 	unsigned int size = ADDR6_SIZE;
+#else
+	int size = ADDR6_SIZE;
+#endif /* __MINGW32__ */
 
+#ifndef __MINGW32__
 	if(poll(tbl->pfds, tbl->num, 0) < 0)
 		return 0;
+#else
+	if(WSAPoll(tbl->pfds, tbl->num, 0) < 0)
+		return 0;
+#endif /* __MINGW32__ */
 
 	for(i = 0; i < tbl->num; i++) {
 		if(tbl->pfds[i].revents != 0) {

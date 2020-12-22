@@ -1,11 +1,14 @@
 #ifndef _LCP_EVENT_H
 #define _LCP_EVENT_H
 
+#ifdef __MINGW32__
+#include <ws2tcpip.h>
+#else
+#include <netinet/in.h>
+#endif /* __MINGW32__ */
+
 #include "define.h"
 #include "lcp.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-
 
 #define LCP_CONNECTED      0x01
 #define LCP_DISCONNECTED   0x02
